@@ -89,12 +89,3 @@ flowchart TD
 | `nassim_taleb`          | Nassim Taleb          | 尾部風險防護，槓鈴策略                |
 
 每位大師針對 US 與 TW 市場分別有對應的分析語境版本，詳見 [custom-agent-guide.md](./custom-agent-guide.md)。
-
----
-
-## 目錄
-
-- [系統架構與目錄分工](./structure.md)
-- [決策執行流程](./workflow.md)
-- [外部資料來源說明](./external-data.md)
-- [新增代理人指南](./custom-agent-guide.md)
