@@ -1,6 +1,11 @@
 # AlphaCouncil
 
-AlphaCouncil 是一個以 **Google ADK**（Agent Development Kit）驅動的多代理人投資分析框架，截長補短整合 [ai-hedge-fund](../ai-hedge-fund/README.md) 的投資大師人格代理人，與 [TradingAgents](../TradingAgents/README.md) 的辯論式決策架構。
+AlphaCouncil 是一個以 **Google ADK**（Agent Development Kit）驅動的多代理人投資分析框架，深受以下兩個優秀開源專案的啟發與影響：
+
+- [**ai-hedge-fund**](https://github.com/virattt/ai-hedge-fund) by [@virattt](https://github.com/virattt) — 投資大師人格代理人的設計理念
+- [**TradingAgents**](https://github.com/TauricResearch/TradingAgents) by Tauric Research — 多代理人辯論式決策架構（[論文](https://arxiv.org/abs/2412.20138)）
+
+本專案在上述基礎上，以 Google ADK 的固定編排能力重新實作，並擴展支援台股市場與更多投資大師視角。
 
 ---
 
@@ -88,4 +93,11 @@ flowchart TD
 | `rakesh_jhunjhunwala`   | Rakesh Jhunjhunwala   | 成長與價值並重，長期持有高信念部位    |
 | `nassim_taleb`          | Nassim Taleb          | 尾部風險防護，槓鈴策略                |
 
-每位大師針對 US 與 TW 市場分別有對應的分析語境版本，詳見 [custom-agent-guide.md](./custom-agent-guide.md)。
+---
+
+## 致謝
+
+本專案的設計靈感主要來自以下研究與開源工作，在此表達誠摯的感謝：
+
+- **ai-hedge-fund** — [@virattt](https://github.com/virattt)：投資大師代理人的人格建模框架
+- **TradingAgents** — [Tauric Research](https://github.com/TauricResearch/TradingAgents)：多代理人辯論決策架構
