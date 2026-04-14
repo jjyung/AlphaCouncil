@@ -1,1 +1,17 @@
 .env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.venv/
+venv/
+env/
+
+# Crawler output — do not commit raw news data
+alpha_council/data/news/
+
+# ADK local session / debug state (e.g. adk web)
+alpha_council/.adk/
