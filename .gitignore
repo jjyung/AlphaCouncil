@@ -1,4 +1,7 @@
+# Environment
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -9,9 +12,37 @@ __pycache__/
 .venv/
 venv/
 env/
+ENV/
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+eggs/
+*.egg-info/
+*.egg
+.eggs/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Type checking
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# ADK
+.adk/
+
+# macOS
+.DS_Store
 
 # Crawler output — do not commit raw news data
 alpha_council/data/news/
 
-# ADK local session / debug state (e.g. adk web)
-alpha_council/.adk/
