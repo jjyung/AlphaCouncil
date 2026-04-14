@@ -1,5 +1,0 @@
-google-adk
-feedparser
-requests
-beautifulsoup4
-lxml
