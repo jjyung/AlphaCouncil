@@ -13,7 +13,11 @@ dependencies = [
     "feedparser",
     "google-adk",
     "lxml",
+    "numpy",
+    "pandas",
     "requests",
+    "ta",
+    "yfinance",
 ]
 
 [tool.setuptools.packages.find]
