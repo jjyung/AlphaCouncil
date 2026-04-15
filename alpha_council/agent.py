@@ -6,7 +6,7 @@ from google.adk.agents.loop_agent import LoopAgent
 from alpha_council.analysts import (
     technical_analyst,
     news_analyst,
-    sentiment_analyst,
+    psychology_analyst,
     fundamental_analyst,
 )
 from alpha_council.masters import (
@@ -30,8 +30,10 @@ from alpha_council.risk import aggressive_debater, neutral_debater, conservative
 # Phase 1 — 四位分析師並行
 analyst_team = ParallelAgent(
     name="analyst_team",
-    sub_agents=[technical_analyst, news_analyst, sentiment_analyst, fundamental_analyst],
-    description="並行執行技術、新聞、情緒與基本面四位分析師，產出各自的分析報告。",
+    sub_agents=[
+        psychology_analyst,
+    ],
+    description="並行執行技術、新聞、市場心理與基本面四位分析師，產出各自的分析報告。",
 )
 
 # Phase 2 — 13 位投資大師並行
@@ -100,12 +102,6 @@ alpha_council_pipeline_agent = SequentialAgent(
     name="AlphaCouncilPipelineAgent",
     sub_agents=[
         analyst_team,
-        masters_panel,
-        research_debate,
-        research_manager,
-        trader,
-        risk_debate,
-        portfolio_manager,
     ],
     description="AlphaCouncil 六階段投資分析流水線：分析師團隊 → 大師觀點 → 研究辯論 → 研究裁決 → 交易員 → 風險辯論 → 投資組合管理人。",
 )

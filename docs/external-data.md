@@ -142,7 +142,7 @@ def get_tw_pe_yield(ticker: str) -> dict:
 - 三大法人期貨部位：`/cht/3/futContractsDate` 與下載頁 `futContractsDateDown`
 - 外資期貨未平倉：由三大法人期貨資料篩出 `外資` 後取得多方 / 空方 / 淨額
 - 選擇權大額交易人未沖銷部位：`/cht/3/largeTraderOptQry` 與下載頁 `largeTraderOptDown`
-- 全市場 Put/Call 比：`/cht/3/pcRatio` 與下載頁 `pcRatioDown`
+- 全市場 Put/Call 比：`https://openapi.taifex.com.tw/v1/PutCallRatio`
 
 - 上述資料適合用來判讀**大盤全局方向與大戶衍生品部位**
 - 不建議直接把外資期貨未平倉或大額交易人選擇權 PCR 套用為單一個股買進訊號
@@ -163,23 +163,23 @@ def get_tw_pe_yield(ticker: str) -> dict:
 #### 臺指選擇權波動率指數（台版 VIX）
 
 ```
-即時/分鐘資料: https://www.taifex.com.tw/cht/7/vixMinNew
-每日歷史資料: https://www.taifex.com.tw/cht/7/vixDaily3MNew
+月度 txt 檔（Big5）: https://www.taifex.com.tw/file/taifex/Dailydownload/vix/log2data/{YYYYMM}new.txt
 ```
 
 - TAIFEX 以 CBOE VIX 公式計算，反映台指選擇權隱含波動率
+- 實作時需聚合多個月份檔案建立連續歷史資料（建議至少 1 年視窗）
 - 免費、官方、無需 API 金鑰
 - 此為 Psychology Analyst 的首要核心指標
 
 #### 臺指選擇權 Put/Call Ratio
 
 ```
-端點: https://www.taifex.com.tw/cht/3/pcRatio
-下載頁: https://www.taifex.com.tw/cht/3/pcRatioDown
+端點: https://openapi.taifex.com.tw/v1/PutCallRatio
 ```
 
 - 提供成交量口徑與未平倉量（OI）口徑兩種 Put/Call 比
 - 成交量口徑反映交易情緒，OI 口徑反映持有偏好
+- 回傳值為百分比格式（例如 125.26 = 125.26%），需除以 100 轉為比值
 - 免費、官方、無需 API 金鑰
 
 > 注意：此 PCR 同時被 Chip Analyst 引用作為大額交易人 PCR 的對照基準線，用途不同。Psychology Analyst 用於整體市場情緒判讀。
@@ -191,16 +191,11 @@ def get_tw_pe_yield(ticker: str) -> dict:
 
 #### 市場行為 proxy（數字型）
 
-以加權指數（`^TWII`，yfinance）與 TWSE 每日市場統計為基礎計算：
+以加權指數（`^TWII`，yfinance）為基礎計算：
 
 - 加權指數近 5 日實現波動率
-- MA5 乖離率
-- 上漲/下跌家數比（TWSE `/exchangeReport/MI_INDEX`）
-- 漲停/跌停家數（TWSE `/exchangeReport/MI_INDEX`）
-- 跳空缺口頻率
-- 近 5 日正負報酬交替次數
 
-這些指標定位為 secondary proxy，輔助核心波動與選擇權指標。
+此指標定位為 secondary proxy，輔助核心波動與選擇權指標。
 
 - Psychology Analyst 不使用新聞風險語氣或社群情緒作為心理指標（該部分由 News Analyst 負責）
 
