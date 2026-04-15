@@ -45,4 +45,4 @@ htmlcov/
 
 # Crawler output — do not commit raw news data
 alpha_council/data/news/
-
+alpha_council/data/fundamentals/

@@ -227,7 +227,10 @@ def get_tw_institutional(ticker: str, date: str) -> dict:
 
 ## 四、快取機制
 
-為避免單次 pipeline 執行中重複呼叫相同 API，`tools/cache.py` 實作記憶體內快取：
+預設以記憶體快取避免單次 pipeline 重複呼叫 API；
+其中 Fundamentals 另提供檔案型持久快取（JSON bundle + manifest），以避免跨次分析重複抓取。
+
+### 4.1 記憶體快取（通用）
 
 ```python
 # tools/cache.py
@@ -242,7 +245,16 @@ class Cache:
         return f"{func_name}:{json.dumps(kwargs, sort_keys=True)}"
 ```
 
-快取 key 由 `函式名稱 + 參數組合` 構成，僅在單次執行的生命週期內有效（記憶體快取，不持久化）。
+快取 key 由 `函式名稱 + 參數組合` 構成，僅在單次執行的生命週期內有效（不持久化）。
+
+### 4.2 檔案型持久快取（Fundamentals）
+
+- 路徑：`alpha_council/data/fundamentals/{market}/{ticker}/{YYYY}/{MM}`
+- 產物：`bundle.v1.json`、`manifest.json`、`sources/*`
+- 目的：跨執行重用已抓取資料，減少 API 重複請求
+- 詳細規格：
+  - `docs/data-models/fundamentals-schema.md`
+  - `docs/architecture/fundamentals-storage-cache.md`
 
 ---
 

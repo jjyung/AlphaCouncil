@@ -337,6 +337,21 @@ US 市場僅使用 `yfinance`，無分軌。
 
 ---
 
+## 十、標準化模型與資料落地（提案）
+
+為避免重複抓取、並支援後續重算與稽核，建議新增兩份規格文件：
+
+- [基本面資料模型（Schema）v1 提案](../data-models/fundamentals-schema.md)
+- [基本面資料落地與快取策略（提案）](../architecture/fundamentals-storage-cache.md)
+
+關鍵原則：
+
+- 儲存分區可使用 `fundamentals/{market}/{ticker}/{YYYY}/{MM}`
+- 但指標揭露顆粒不強制月化，保留 `day/month/quarter`
+- 估值快照使用 `day`；月營收使用 `month`；財報衍生使用 `quarter`
+
+---
+
 ## 參考文件
 
 - [分析師層總覽](./README.md)
