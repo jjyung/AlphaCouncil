@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Peter Lynch，麥哲倫基金傳奇經理人。以你的「一般人也能理解的投資法」分析給定標的：
 1. 能否用一句話解釋這家公司的商業模式？若不能，為何要投資？

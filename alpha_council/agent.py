@@ -1,9 +1,10 @@
 from google.adk.agents.llm_agent import Agent
-
 from google.adk.agents.parallel_agent import ParallelAgent
 from google.adk.agents.loop_agent import LoopAgent
-from alpha_council.utils.dynamic_masters_panel import DynamicMastersPanel
-from alpha_council.utils.conditional_pipeline import ConditionalPipeline
+from google.adk.agents.sequential_agent import SequentialAgent
+from google.genai import types
+
+from alpha_council.utils.master_runtime import DynamicMastersPanel
 
 from alpha_council.analysts import (
     technical_analyst,
@@ -29,14 +30,44 @@ from alpha_council.masters import (
 )
 from alpha_council.researchers import bull_researcher, bear_researcher
 from alpha_council.risk import aggressive_debater, neutral_debater, conservative_debater
-from alpha_council.intent_gate import intent_gate
+from alpha_council.intent_gate import intent_gate, skip_if_awaiting_master_choice
 from alpha_council.master_selector import master_selector_agent
 
+
+# ---------------------------------------------------------------------------
+# Pipeline-specific guard callbacks
+# ---------------------------------------------------------------------------
+
+
+def _skip_analyst_team(callback_context) -> types.Content | None:
+    """Skip analyst_team when analysis_intent=False (chitchat) or awaiting master choice."""
+    state = callback_context.state
+    if state.get("analysis_intent") is False:
+        return types.Content(parts=[])
+    if state.get("awaiting_master_choice"):
+        return types.Content(parts=[])
+    return None
+
+
+def _skip_downstream(callback_context) -> types.Content | None:
+    """Skip downstream phases when awaiting master choice or no consolidated report yet."""
+    state = callback_context.state
+    if state.get("analysis_intent") is False:
+        return types.Content(parts=[])
+    if state.get("awaiting_master_choice"):
+        return types.Content(parts=[])
+    if not state.get("consolidated_masters_report"):
+        return types.Content(parts=[])
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Phase 0 — 意圖偵測閘（最先執行）
 # Writes analysis_intent: bool to session state.
 # False → all downstream agents are no-ops via before_agent_callback.
 
-# Phase 1 — 分析師團隊（目前啟用：news_analyst；其餘分析師保留 import，可按需加回）
+# Phase 1 — 分析師團隊
+# Skipped when analysis_intent=False (chitchat) or awaiting_master_choice=True (round 2).
 analyst_team = ParallelAgent(
     name="analyst_team",
     sub_agents=[
@@ -46,15 +77,17 @@ analyst_team = ParallelAgent(
         fundamental_analyst,
         chip_analyst,
     ],
+    before_agent_callback=_skip_analyst_team,
     description="分析師團隊：目前執行 news_analyst，產出 news_report。其餘分析師（技術、心理、籌碼、基本面）已 import 但尚未加入，可按需啟用。",
 )
 
 # Phase 1.5 — 大師選擇（使用者指定 3–7 位，或隨機 3 位）
-# Skipped when analysis_intent=False (before_agent_callback on master_selector_agent).
-# Writes selected_masters: list[str] to session state.
+# before_agent_callback=skip_if_no_analysis_intent already on master_selector_agent.
+# Writes selected_masters: list[str] and awaiting_master_choice: bool to session state.
 
-# Phase 2 — 13 位投資大師並行（僅執行已選中的大師）
-# Each master checks analysis_intent + selected_masters via before_agent_callback.
+# Phase 2 — 13 位投資大師（僅執行已選中的大師）
+# Skip logic handled inside DynamicMastersPanel._run_async_impl:
+#   analysis_intent=False → skip; awaiting_master_choice=True → skip; selected empty → skip.
 masters_panel = DynamicMastersPanel(
     name="masters_panel",
     sub_agents=[
@@ -80,6 +113,7 @@ research_debate = LoopAgent(
     name="research_debate",
     sub_agents=[bull_researcher, bear_researcher],
     max_iterations=2,
+    before_agent_callback=_skip_downstream,
     description="看多研究員與看空研究員進行辯論，最多循環 2 輪，凝聚多空論點。",
 )
 
@@ -88,6 +122,7 @@ research_manager = Agent(
     model="gemini-2.5-flash",
     name="research_manager",
     description="綜合辯論結果，裁決最終研究結論，輸出投資信號與關鍵論據。",
+    before_agent_callback=_skip_downstream,
     instruction="根據 research_debate 的多空論點，給出明確的買入 / 持有 / 賣出建議並說明理由。",
 )
 
@@ -96,6 +131,7 @@ trader = Agent(
     model="gemini-2.5-flash",
     name="trader",
     description="依據研究管理人的結論，擬定具體交易方案（標的、方向、倉位比例）。",
+    before_agent_callback=_skip_downstream,
     instruction="根據研究管理人的投資信號，產出可執行的交易計畫，包含進場條件與停損設定。",
 )
 
@@ -104,6 +140,7 @@ risk_debate = LoopAgent(
     name="risk_debate",
     sub_agents=[aggressive_debater, neutral_debater, conservative_debater],
     max_iterations=2,
+    before_agent_callback=_skip_downstream,
     description="激進、中立、保守三位辯手對交易方案進行風險辯論，最多循環 2 輪。",
 )
 
@@ -112,23 +149,24 @@ portfolio_manager = Agent(
     model="gemini-2.5-flash",
     name="portfolio_manager",
     description="整合所有分析與風險辯論，做出最終投資組合決策，包含倉位大小與風險控管措施。",
+    before_agent_callback=_skip_downstream,
     instruction="根據交易員方案與風險辯論結果，給出最終投資決策，需明確說明倉位比例、風險敞口與退出策略。",
 )
 
-# 主 Pipeline（ConditionalPipeline 取代 SequentialAgent）
-# 路由規則：
-#   analysis_intent=False → 只跑 intent_gate，輸出友善回覆，完全停止
-#   analysis_intent=True + awaiting=False → intent_gate → analyst_team → master_selector
-#   awaiting_master_choice=True → 在 master_selector 回覆選單後停止，不進入 Phase 2
-#   masters selected + awaiting=False → 繼續執行 masters_panel（內含聚合）
+# ---------------------------------------------------------------------------
+# 主 Pipeline（SequentialAgent）
+# 固定順序：intent_gate → analyst_team → master_selector → masters_panel →
+#           research_debate → research_manager → trader → risk_debate → portfolio_manager
+#
+# 條件跳過由各 agent 的 before_agent_callback 負責；允許 skip events。
 #
 # Session state keys:
 #   intent_gate          → analysis_intent_raw, analysis_intent: bool
 #   analyst_team         → news_report (+ future: technical_report, etc.)
 #   master_selector      → selected_masters: list[str], awaiting_master_choice: bool
 #   masters_panel        → {name}_report for each selected master
-#                      + consolidated_masters_report
-alpha_council_pipeline_agent = ConditionalPipeline(
+#                        + consolidated_masters_report
+alpha_council_pipeline_agent = SequentialAgent(
     name="AlphaCouncilPipelineAgent",
     sub_agents=[
         intent_gate,
@@ -142,9 +180,9 @@ alpha_council_pipeline_agent = ConditionalPipeline(
         portfolio_manager,
     ],
     description=(
-        "AlphaCouncil 投資分析流水線（條件路由）："
-        "意圖偵測 → 分析師團隊 → 大師選擇 → 大師觀點（含聚合）。"
-        "各階段依 session state 條件決定是否執行，不產生 skip 事件。"
+        "AlphaCouncil 投資分析流水線（SequentialAgent）："
+        "意圖偵測 → 分析師團隊 → 大師選擇 → 大師觀點（含聚合）→ 研究辯論 → 研究裁決 → 交易員 → 風險辯論 → 投資組合管理人。"
+        "各階段透過 before_agent_callback 條件跳過，允許 skip events。"
     ),
 )
 

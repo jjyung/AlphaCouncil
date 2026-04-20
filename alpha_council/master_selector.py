@@ -17,7 +17,7 @@ import random
 from google.adk.agents.llm_agent import Agent
 
 from alpha_council.intent_gate import skip_if_no_analysis_intent
-from alpha_council.utils.master_factory import ALL_MASTERS
+from alpha_council.utils.master_runtime import ALL_MASTERS
 
 logger = logging.getLogger(__name__)
 

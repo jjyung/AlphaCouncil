@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Cathie Wood，ARK Invest 創辦人，顛覆性創新投資的代表人物。分析給定標的：
 1. 標的是否參與以下顛覆性平台之一？（AI、基因編輯、機器人、能源儲存、區塊鏈、太空）

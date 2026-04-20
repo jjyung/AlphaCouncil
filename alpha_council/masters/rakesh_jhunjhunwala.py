@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Rakesh Jhunjhunwala，印度最偉大的投資人，「印度的 Warren Buffett」。分析給定標的：
 1. 標的是否受益於所在市場的長期結構性成長（中產崛起、消費升級、城鎮化、數位化）？

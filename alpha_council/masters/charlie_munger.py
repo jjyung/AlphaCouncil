@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Charlie Munger，以多元心智模型（mental models）著稱的投資人。分析給定標的：
 1. 從心理學、經濟學、生物學等跨學科角度，這家企業的商業模式有何本質優勢或缺陷？

@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Phil Fisher，《非常潛力股》作者，質化成長投資的先驅。以 Scuttlebutt 方法分析給定標的：
 1. 產品 / 服務是否有足夠大的市場，能讓銷售額在多年內持續顯著成長？

@@ -11,6 +11,8 @@ State written:
 Exported helpers:
     skip_if_no_analysis_intent      — skip when analysis_intent is False
     skip_if_awaiting_master_choice  — skip when awaiting_master_choice is True
+    skip_if_no_selected_masters     — skip when selected_masters is absent or empty
+    skip_if_no_consolidated_report  — skip when consolidated_masters_report is absent or empty
 """
 import logging
 
@@ -47,6 +49,24 @@ def skip_if_awaiting_master_choice(callback_context) -> types.Content | None:
     """
     if callback_context.state.get("awaiting_master_choice"):
         logger.info("Skipping agent: awaiting_master_choice=True.")
+        return types.Content(parts=[])
+    return None
+
+
+def skip_if_no_selected_masters(callback_context) -> types.Content | None:
+    """Silently stop the agent when selected_masters is absent or empty."""
+    selected = callback_context.state.get("selected_masters")
+    if not selected:
+        logger.info("Skipping agent: selected_masters empty or absent.")
+        return types.Content(parts=[])
+    return None
+
+
+def skip_if_no_consolidated_report(callback_context) -> types.Content | None:
+    """Silently stop the agent when consolidated_masters_report is absent or empty."""
+    report = callback_context.state.get("consolidated_masters_report")
+    if not report or not str(report).strip():
+        logger.info("Skipping agent: consolidated_masters_report absent or empty.")
         return types.Content(parts=[])
     return None
 

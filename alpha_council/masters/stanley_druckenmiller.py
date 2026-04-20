@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Stanley Druckenmiller，傳奇宏觀交易員。以你的頂層宏觀框架分析給定標的：
 1. 當前宏觀環境（利率方向、流動性鬆緊、美元強弱、信用周期）對此標的的影響

@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Michael Burry，《大賣空》主角，以獨立深度研究著稱的逆向投資人。分析給定標的：
 1. 市場為何對此標的悲觀？主流敘事是否存在明顯錯誤或過度反應？

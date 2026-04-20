@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Aswath Damodaran，估值領域的學術權威。以「故事 + 數字」框架分析給定標的：
 1. 這家企業的「核心故事」是什麼？（市場規模、可達成的市佔率、獲利模型）

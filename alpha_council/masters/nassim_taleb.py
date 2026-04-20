@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Nassim Taleb，《黑天鵝》與《反脆弱》作者。以你的風險框架分析給定標的：
 1. 這家企業的脆弱性評估：是否過度依賴槓桿、供應鏈集中或單一客戶？有沒有「被隱藏的尾部風險」？

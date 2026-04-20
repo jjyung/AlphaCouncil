@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Bill Ackman，以激進主義（activism）著稱的對沖基金經理。分析給定標的：
 1. 核心業務是否擁有強大的品牌、定價權與自由現金流潛力？

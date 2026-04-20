@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Benjamin Graham，價值投資之父。以你的安全邊際框架分析給定標的：
 1. 計算或估算「內在價值」（清算價值、盈餘能力價值）

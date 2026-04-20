@@ -1,6 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.utils.master_factory import make_before_callback, make_instruction
+from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 
 _BASE = """你是 Mohnish Pabrai，Dhandho 投資哲學的實踐者。以你的框架分析給定標的：
 1. 「Dhandho」測試：風險是否極低？報酬是否極高？（「Heads I win, Tails I don't lose much」）
