@@ -34,6 +34,10 @@ MASTER_OUTPUT_KEYS: dict[str, str] = {name: f"{name}_report" for name in ALL_MAS
 # "news_report" is required; append "?" to make a key optional (e.g. "technical_report?").
 DEFAULT_ANALYST_KEYS: list[str] = [
     "news_report",
+    "technical_report",
+    "psychology_report",
+    "fundamentals_report",
+    "chip_report",
 ]
 
 
