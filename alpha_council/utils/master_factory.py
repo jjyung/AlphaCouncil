@@ -79,14 +79,27 @@ def build_reports_context(state: dict, key_specs: list[str]) -> str:
 
 
 def make_before_callback(master_name: str):
-    """Return a before_agent_callback that skips *master_name* if not selected.
+    """Return a before_agent_callback that skips *master_name* when appropriate.
 
-    If 'selected_masters' is absent from state (no selection step ran), the
-    master always proceeds — backwards-compatible with direct pipeline runs.
+    Skip conditions (checked in order):
+    1. analysis_intent is explicitly False  → chitchat turn, skip everyone.
+    2. selected_masters is set and this master is not in it → not chosen.
+    If selected_masters is absent and analysis_intent is not False, the master
+    proceeds — preserving backward-compatibility with direct pipeline runs.
     """
 
     def callback(callback_context) -> types.Content | None:
-        selected = callback_context.state.get("selected_masters")
+        state = callback_context.state
+
+        # Gate 1: skip entire masters phase on chitchat turns.
+        if state.get("analysis_intent") is False:
+            logger.info("Master %r skipping: analysis_intent=False.", master_name)
+            return types.Content(
+                parts=[types.Part(text=f"[{master_name} 未被選中，本輪跳過。]")]
+            )
+
+        # Gate 2: skip masters not in the user's selection.
+        selected = state.get("selected_masters")
         if selected is not None and master_name not in selected:
             logger.info(
                 "Master %r not in selected_masters %s — skipping.", master_name, selected
@@ -94,6 +107,7 @@ def make_before_callback(master_name: str):
             return types.Content(
                 parts=[types.Part(text=f"[{master_name} 未被選中，本輪跳過。]")]
             )
+
         return None
 
     return callback
