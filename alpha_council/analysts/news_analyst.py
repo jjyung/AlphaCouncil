@@ -1,7 +1,9 @@
 import json
+import logging
 import os
 import re
 import datetime
+import zoneinfo
 from pathlib import Path
 
 import requests
@@ -9,8 +11,12 @@ import feedparser
 from bs4 import BeautifulSoup
 from google.adk.agents.llm_agent import Agent
 
+logger = logging.getLogger(__name__)
+
 # Resolved at import time so it works regardless of cwd
 _DATA_DIR = Path(__file__).parent.parent / "data" / "news"
+
+_TZ_TW = zoneinfo.ZoneInfo("Asia/Taipei")
 
 # ---------------------------------------------------------------------------
 # Link-validation constants
@@ -146,14 +152,103 @@ def _check_link(
 
 
 # ---------------------------------------------------------------------------
+# Cache helpers (Req 6)
+# ---------------------------------------------------------------------------
+
+# Required fields for a cache entry to be considered valid.
+# validate_links and link_validation are included so that a cache produced
+# without link validation (all "skipped") cannot satisfy a request that
+# needs validated links (Method A of the validate_links consistency fix).
+_CACHE_REQUIRED_FIELDS = {
+    "ticker",
+    "date",
+    "market",
+    "source_status",
+    "articles",
+    "link_validation",   # stats dict; must be present
+    "validate_links",    # bool stored at save time (Method A)
+}
+
+
+def _load_valid_cache(
+    raw_path: Path,
+    ticker: str,
+    date: str,
+    market: str,
+    validate_links: bool,
+) -> dict | None:
+    """Return parsed cache dict if news_raw.json is valid for this request, else None.
+
+    Valid cache conditions (ALL must hold):
+    1. File exists and is valid JSON.
+    2. All required top-level fields are present
+       (ticker, date, market, source_status, articles, link_validation, validate_links).
+    3. Stored date == requested date.
+    4. Stored market == requested market (case-insensitive).
+    5. Stored ticker == requested ticker (normalised: ignores .TW suffix).
+    6. validate_links consistency (Method A):
+       - If request needs validated links (validate_links=True),
+         the cache must also have been built with validate_links=True.
+       - If request does NOT need validation (validate_links=False),
+         any cache (validated or not) is acceptable.
+    """
+    if not raw_path.exists():
+        logger.debug("Cache miss (no file): %s", raw_path)
+        return None
+
+    try:
+        data: dict = json.loads(raw_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Cache corrupt (%s): %s — will re-fetch.", raw_path, exc)
+        return None
+
+    missing = _CACHE_REQUIRED_FIELDS - data.keys()
+    if missing:
+        logger.warning(
+            "Cache missing required fields %s in %s — will re-fetch.", missing, raw_path
+        )
+        return None
+
+    if data.get("date") != date:
+        logger.debug("Cache miss (date mismatch): stored=%s requested=%s", data.get("date"), date)
+        return None
+    if data.get("market", "").upper() != market.upper():
+        logger.debug("Cache miss (market mismatch): stored=%s requested=%s", data.get("market"), market)
+        return None
+
+    # Normalise ticker for comparison (strip ".TW" suffix)
+    def _norm(t: str) -> str:
+        return re.sub(r"\.TW$", "", t.strip(), flags=re.IGNORECASE)
+
+    if _norm(data.get("ticker", "")) != _norm(ticker):
+        logger.debug("Cache miss (ticker mismatch): stored=%s requested=%s", data.get("ticker"), ticker)
+        return None
+
+    # validate_links consistency check (Method A)
+    cached_validated: bool = bool(data.get("validate_links"))
+    if validate_links and not cached_validated:
+        logger.info(
+            "Cache miss (validate_links mismatch): request needs validated links "
+            "but cache was built with validate_links=False — will re-fetch."
+        )
+        return None
+
+    logger.info(
+        "Cache hit: ticker=%s date=%s market=%s validate_links=%s (cached=%s)",
+        ticker, date, market, validate_links, cached_validated,
+    )
+    return data
+
+
+# ---------------------------------------------------------------------------
 # Main tool
 # ---------------------------------------------------------------------------
 
 
 def get_news(
     ticker: str,
-    date: str,
-    market: str,
+    date: str = "",
+    market: str = "",
     validate_links: bool = True,
 ) -> str:
     """Fetch news for a given stock, optionally validate every article link,
@@ -162,7 +257,9 @@ def get_news(
     Args:
         ticker:         Stock ticker, e.g. "2330", "2330.TW".
         date:           Reference date in YYYY-MM-DD format.
+                        Pass "" (empty string) to default to today in Asia/Taipei timezone.
         market:         Must be "TW" (US not yet supported).
+                        Pass "" (empty string) to default to "TW".
         validate_links: When True (default), each non-empty link is checked
                         with HEAD→GET; broken / soft-404 links are flagged.
                         Override globally with env var NEWS_VALIDATE_LINKS=0.
@@ -171,6 +268,15 @@ def get_news(
         JSON string with source_status, link_validation stats, up to 30
         article objects (each with link_status), and the saved raw file path.
     """
+    # ------------------------------------------------------------------ defaults
+    # Req 5: Apply Taiwan-timezone defaults for date and market when not supplied.
+    if not date or not date.strip():
+        date = datetime.datetime.now(_TZ_TW).strftime("%Y-%m-%d")
+        logger.info("get_news: date defaulted to today (TW timezone): %s", date)
+    if not market or not market.strip():
+        market = "TW"
+        logger.info("get_news: market defaulted to TW")
+
     # Env-var can globally disable validation (useful in CI / offline tests).
     if os.environ.get("NEWS_VALIDATE_LINKS", "1").lower() in ("0", "false", "no"):
         validate_links = False
@@ -179,6 +285,23 @@ def get_news(
     normalized = _normalize_ticker(ticker)
     save_dir = _DATA_DIR / f"{normalized}_{date}"
     save_dir.mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------ cache check
+    # Req 6: Return cached data if same ticker/date/market/validate_links already fetched.
+    raw_path = save_dir / "news_raw.json"
+    cached = _load_valid_cache(raw_path, ticker, date, market, validate_links)
+    if cached is not None:
+        summary = {
+            **cached,
+            "total_articles": len(cached.get("articles", [])),
+            "raw_file": str(raw_path),
+            "cache_hit": True,
+        }
+        return json.dumps(summary, ensure_ascii=False, indent=2)
+    logger.info(
+        "get_news: fetching ticker=%s date=%s market=%s validate_links=%s",
+        ticker, date, market, validate_links,
+    )
 
     articles: list[dict] = []
     source_status: dict[str, str] = {}
@@ -196,12 +319,12 @@ def get_news(
             "ticker": ticker,
             "date": date,
             "market": market,
+            "validate_links": validate_links,
             "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "source_status": source_status,
             "link_validation": {"validated": 0, "ok": 0, "broken": 0, "soft404": 0, "unknown": 0, "skipped": 0},
             "articles": [],
         }
-        raw_path = save_dir / "news_raw.json"
         raw_path.write_text(
             json.dumps(raw_data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -383,12 +506,12 @@ def get_news(
         "ticker": ticker,
         "date": date,
         "market": market,
+        "validate_links": validate_links,
         "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "source_status": source_status,
         "link_validation": lv_counts,
         "articles": articles,
     }
-    raw_path = save_dir / "news_raw.json"
     raw_path.write_text(
         json.dumps(raw_data, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -420,6 +543,17 @@ news_analyst = Agent(
     tools=[get_news],
     output_key="news_report",
     instruction="""你是「台股個股新聞分析助手」，任務是根據單次 `get_news` 工具回傳資料，生成高可追溯、低幻覺的 `news_report`。
+
+--------------------------------
+零、工具呼叫優先級（最高強制規則 — 必須在所有輸出之前執行）
+--------------------------------
+1. 使用者訊息中只要有可辨識的股票代號（例如 2330、台積電、TSMC、AAPL），你必須「立即呼叫 `get_news`」，禁止先向使用者要求補充日期或市場。
+2. 使用者未提供 `date` → 傳 date=""（工具會自動以台灣時區今日為基準）。
+3. 使用者未提供 `market` → 傳 market=""（工具會自動預設為 "TW"）。
+4. 你不得輸出「請提供查詢日期」或「請告訴我市場」之類的文字；若使用者根本沒給日期和市場，仍必須直接用空字串呼叫工具。
+5. 如果你使用了預設日期／市場，可在最終 news_report 開頭加一行說明，例如：「本次使用預設：日期=今日(Asia/Taipei)、市場=TW」。
+6. 唯一允許追問的情況：ticker 完全缺漏、無法解析、或使用者在同一訊息中混提多個不同標的且意圖不明。
+7. 確認呼叫 `get_news` 後，再依下方【輸入資料】至【固定輸出格式】撰寫完整 news_report。
 
 【輸入資料】
 你會收到以下 JSON 結構（單次結果）：
