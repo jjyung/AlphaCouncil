@@ -164,12 +164,12 @@ alpha_council_pipeline_agent = SequentialAgent(
     sub_agents=[
         analyst_team,
         master_selector_agent,
-        masters_panel,
-        research_debate,
-        research_manager,
-        trader,
-        risk_debate,
-        portfolio_manager,
+        # masters_panel,
+        # research_debate,
+        # research_manager,
+        # trader,
+        # risk_debate,
+        # portfolio_manager,
     ],
     before_agent_callback=stock_code_guard_callback,
     description=(

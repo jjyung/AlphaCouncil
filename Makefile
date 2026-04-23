@@ -16,4 +16,10 @@ api-server:
 	uv run adk api_server
 
 k8000:
-	kill -9 $(lsof -ti :8000)
+	@pids="$$(lsof -ti :8000)"; \
+	if [ -n "$$pids" ]; then \
+		kill -9 $$pids; \
+		echo "Killed process(es) on :8000 -> $$pids"; \
+	else \
+		echo "No process is listening on :8000"; \
+	fi
