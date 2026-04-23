@@ -1,4 +1,4 @@
-.PHONY: sync lock run web api-server
+.PHONY: sync lock run web api-server k8000
 
 sync:
 	uv sync
@@ -14,3 +14,6 @@ web:
 
 api-server:
 	uv run adk api_server
+
+k8000:
+	kill -9 $(lsof -ti :8000)

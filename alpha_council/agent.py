@@ -30,8 +30,8 @@ from alpha_council.masters import (
 )
 from alpha_council.researchers import bull_researcher, bear_researcher
 from alpha_council.risk import aggressive_debater, neutral_debater, conservative_debater
-from alpha_council.intent_gate import intent_gate, skip_if_awaiting_master_choice
 from alpha_council.master_selector import master_selector_agent
+from guardrail.stock_code_guard import stock_code_guard_callback
 
 
 # ---------------------------------------------------------------------------
@@ -59,12 +59,6 @@ def _skip_downstream(callback_context) -> types.Content | None:
     if not state.get("consolidated_masters_report"):
         return types.Content(parts=[])
     return None
-
-
-# ---------------------------------------------------------------------------
-# Phase 0 — 意圖偵測閘（最先執行）
-# Writes analysis_intent: bool to session state.
-# False → all downstream agents are no-ops via before_agent_callback.
 
 # Phase 1 — 分析師團隊
 # Skipped when analysis_intent=False (chitchat) or awaiting_master_choice=True (round 2).
@@ -155,21 +149,19 @@ portfolio_manager = Agent(
 
 # ---------------------------------------------------------------------------
 # 主 Pipeline（SequentialAgent）
-# 固定順序：intent_gate → analyst_team → master_selector → masters_panel →
-#           research_debate → research_manager → trader → risk_debate → portfolio_manager
+# 目前啟用順序：analyst_team → master_selector → masters_panel → research_debate → research_manager → trader → risk_debate → portfolio_manager
 #
 # 條件跳過由各 agent 的 before_agent_callback 負責；允許 skip events。
 #
 # Session state keys:
-#   intent_gate          → analysis_intent_raw, analysis_intent: bool
 #   analyst_team         → news_report (+ future: technical_report, etc.)
 #   master_selector      → selected_masters: list[str], awaiting_master_choice: bool
 #   masters_panel        → {name}_report for each selected master
 #                        + consolidated_masters_report
+
 alpha_council_pipeline_agent = SequentialAgent(
     name="AlphaCouncilPipelineAgent",
     sub_agents=[
-        intent_gate,
         analyst_team,
         master_selector_agent,
         masters_panel,
@@ -179,9 +171,10 @@ alpha_council_pipeline_agent = SequentialAgent(
         risk_debate,
         portfolio_manager,
     ],
+    before_agent_callback=stock_code_guard_callback,
     description=(
         "AlphaCouncil 投資分析流水線（SequentialAgent）："
-        "意圖偵測 → 分析師團隊 → 大師選擇 → 大師觀點（含聚合）→ 研究辯論 → 研究裁決 → 交易員 → 風險辯論 → 投資組合管理人。"
+        "股票代號格式檢查 → 分析師團隊 → 大師選擇 → 大師觀點（含聚合）→ 研究辯論 → 研究裁決 → 交易員 → 風險辯論 → 投資組合管理人。"
         "各階段透過 before_agent_callback 條件跳過，允許 skip events。"
     ),
 )
