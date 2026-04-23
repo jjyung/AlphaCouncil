@@ -14,7 +14,7 @@ rakesh_jhunjhunwala = Agent(
     model="gemini-2.5-flash",
     name="rakesh_jhunjhunwala",
     description="Rakesh Jhunjhunwala：成長與價值並重，以高信念長期持有受益於新興市場崛起的企業。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("rakesh_jhunjhunwala", _BASE),
     before_agent_callback=make_before_callback("rakesh_jhunjhunwala"),
     output_key="rakesh_jhunjhunwala_report",
 )

@@ -53,6 +53,38 @@ ALL_MASTERS: list[str] = [
     "nassim_taleb",
 ]
 
+MASTER_DISPLAY_NAMES: dict[str, str] = {
+    "warren_buffett": "Warren Buffett",
+    "ben_graham": "Ben Graham",
+    "charlie_munger": "Charlie Munger",
+    "aswath_damodaran": "Aswath Damodaran",
+    "bill_ackman": "Bill Ackman",
+    "cathie_wood": "Cathie Wood",
+    "michael_burry": "Michael Burry",
+    "peter_lynch": "Peter Lynch",
+    "phil_fisher": "Phil Fisher",
+    "mohnish_pabrai": "Mohnish Pabrai",
+    "stanley_druckenmiller": "Stanley Druckenmiller",
+    "rakesh_jhunjhunwala": "Rakesh Jhunjhunwala",
+    "nassim_taleb": "Nassim Taleb",
+}
+
+MASTER_PHILOSOPHIES: dict[str, str] = {
+    "warren_buffett": "護城河 + 長期複利，重視可預測現金流與管理層紀律。",
+    "ben_graham": "深度價值與安全邊際，偏好低估且下檔受保護標的。",
+    "charlie_munger": "高品質企業合理價，強調心智模型與長期競爭優勢。",
+    "aswath_damodaran": "估值導向，先釐清敘事再回到現金流與折現假設。",
+    "bill_ackman": "高信念集中投資，催化劑與管理改善是關鍵。",
+    "cathie_wood": "顛覆式創新成長，押注長期技術曲線與平台效應。",
+    "michael_burry": "逆向與錯價修正，偏好不對稱風險報酬機會。",
+    "peter_lynch": "由生活洞察找成長，重視業務可理解與基本面驗證。",
+    "phil_fisher": "Scuttlebutt 深度研究，聚焦成長品質與管理層執行力。",
+    "mohnish_pabrai": "低風險高不對稱，複製優秀策略並保持耐心。",
+    "stanley_druckenmiller": "宏觀趨勢 + 風險動態調整，重視時機與部位管理。",
+    "rakesh_jhunjhunwala": "成長與價值並重，敢於集中於高 conviction 標的。",
+    "nassim_taleb": "反脆弱與尾部風險，避免脆弱曝險並追求非對稱性。",
+}
+
 # Maps master name -> session-state key where their report is stored.
 MASTER_OUTPUT_KEYS: dict[str, str] = {name: f"{name}_report" for name in ALL_MASTERS}
 
@@ -146,10 +178,15 @@ def make_before_callback(master_name: str):
 # ---------------------------------------------------------------------------
 
 
-def make_instruction(base_instruction: str, report_key_specs: list[str] | None = None):
+def make_instruction(
+    master_name: str,
+    base_instruction: str,
+    report_key_specs: list[str] | None = None,
+):
     """Return a callable instruction that prepends analyst reports at runtime.
 
     Args:
+        master_name:       The unique identifier of the master (used for header).
         base_instruction:  The master's original system-prompt string.
         report_key_specs:  List of "key" / "key?" specs to inject from state.
                            Defaults to DEFAULT_ANALYST_KEYS if None.
@@ -158,18 +195,27 @@ def make_instruction(base_instruction: str, report_key_specs: list[str] | None =
         (ReadonlyContext) -> str
     """
     specs = report_key_specs if report_key_specs is not None else DEFAULT_ANALYST_KEYS
+    display_name = MASTER_DISPLAY_NAMES.get(master_name, master_name)
 
     def dynamic_instruction(ctx) -> str:
         state = ctx.state
         context_block = build_reports_context(state, specs)
+
+        header_instruction = (
+            f"【回應格式規範 — 極重要】\n"
+            f"你的回應必須以 Markdown 一級標題開始，內容為你的名字：\n"
+            f"# {display_name}\n\n"
+        )
+
         if context_block:
             return (
+                f"{header_instruction}"
                 "【前置分析報告 — 請優先閱讀以下資料再發表你的觀點】\n\n"
                 f"{context_block}\n\n"
                 "---\n\n"
                 f"{base_instruction}"
             )
-        return base_instruction
+        return f"{header_instruction}{base_instruction}"
 
     return dynamic_instruction
 

@@ -14,7 +14,7 @@ warren_buffett = Agent(
     model="gemini-2.5-flash",
     name="warren_buffett",
     description="Warren Buffett：以合理價格買入具持久競爭優勢的優質企業，長期持有。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("warren_buffett", _BASE),
     before_agent_callback=make_before_callback("warren_buffett"),
     output_key="warren_buffett_report",
 )

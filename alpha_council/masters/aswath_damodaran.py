@@ -14,7 +14,7 @@ aswath_damodaran = Agent(
     model="gemini-2.5-flash",
     name="aswath_damodaran",
     description="Aswath Damodaran：以嚴謹的敘事（narrative）搭配數字驅動的 DCF 估值分析標的。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("aswath_damodaran", _BASE),
     before_agent_callback=make_before_callback("aswath_damodaran"),
     output_key="aswath_damodaran_report",
 )

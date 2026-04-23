@@ -14,7 +14,7 @@ phil_fisher = Agent(
     model="gemini-2.5-flash",
     name="phil_fisher",
     description="Phil Fisher：Scuttlebutt 深度調研法，以質化分析為核心評估長期成長型企業。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("phil_fisher", _BASE),
     before_agent_callback=make_before_callback("phil_fisher"),
     output_key="phil_fisher_report",
 )

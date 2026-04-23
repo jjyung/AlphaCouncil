@@ -15,7 +15,7 @@ peter_lynch = Agent(
     model="gemini-2.5-flash",
     name="peter_lynch",
     description="Peter Lynch：投資你了解的企業，用 PEG ratio 尋找成長合理定價的十倍股。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("peter_lynch", _BASE),
     before_agent_callback=make_before_callback("peter_lynch"),
     output_key="peter_lynch_report",
 )

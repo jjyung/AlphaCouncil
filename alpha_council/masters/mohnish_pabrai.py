@@ -14,7 +14,7 @@ mohnish_pabrai = Agent(
     model="gemini-2.5-flash",
     name="mohnish_pabrai",
     description="Mohnish Pabrai：Dhandho 框架——尋找「Heads I win, Tails I don't lose much」的低風險高報酬機會。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("mohnish_pabrai", _BASE),
     before_agent_callback=make_before_callback("mohnish_pabrai"),
     output_key="mohnish_pabrai_report",
 )

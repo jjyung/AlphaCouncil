@@ -17,44 +17,16 @@ import random
 from google.adk.agents.llm_agent import Agent
 
 from alpha_council.intent_gate import skip_if_no_analysis_intent
-from alpha_council.utils.master_runtime import ALL_MASTERS
+from alpha_council.utils.master_runtime import (
+    ALL_MASTERS,
+    MASTER_DISPLAY_NAMES,
+    MASTER_PHILOSOPHIES,
+)
 
 logger = logging.getLogger(__name__)
 
 # Menu: 1-based number → master name
 MASTER_MENU: dict[int, str] = {i + 1: name for i, name in enumerate(ALL_MASTERS)}
-
-_DISPLAY_NAMES: dict[str, str] = {
-    "warren_buffett": "Warren Buffett",
-    "ben_graham": "Ben Graham",
-    "charlie_munger": "Charlie Munger",
-    "aswath_damodaran": "Aswath Damodaran",
-    "bill_ackman": "Bill Ackman",
-    "cathie_wood": "Cathie Wood",
-    "michael_burry": "Michael Burry",
-    "peter_lynch": "Peter Lynch",
-    "phil_fisher": "Phil Fisher",
-    "mohnish_pabrai": "Mohnish Pabrai",
-    "stanley_druckenmiller": "Stanley Druckenmiller",
-    "rakesh_jhunjhunwala": "Rakesh Jhunjhunwala",
-    "nassim_taleb": "Nassim Taleb",
-}
-
-_MASTER_PHILOSOPHY: dict[str, str] = {
-    "warren_buffett": "護城河 + 長期複利，重視可預測現金流與管理層紀律。",
-    "ben_graham": "深度價值與安全邊際，偏好低估且下檔受保護標的。",
-    "charlie_munger": "高品質企業合理價，強調心智模型與長期競爭優勢。",
-    "aswath_damodaran": "估值導向，先釐清敘事再回到現金流與折現假設。",
-    "bill_ackman": "高信念集中投資，催化劑與管理改善是關鍵。",
-    "cathie_wood": "顛覆式創新成長，押注長期技術曲線與平台效應。",
-    "michael_burry": "逆向與錯價修正，偏好不對稱風險報酬機會。",
-    "peter_lynch": "由生活洞察找成長，重視業務可理解與基本面驗證。",
-    "phil_fisher": "Scuttlebutt 深度研究，聚焦成長品質與管理層執行力。",
-    "mohnish_pabrai": "低風險高不對稱，複製優秀策略並保持耐心。",
-    "stanley_druckenmiller": "宏觀趨勢 + 風險動態調整，重視時機與部位管理。",
-    "rakesh_jhunjhunwala": "成長與價值並重，敢於集中於高 conviction 標的。",
-    "nassim_taleb": "反脆弱與尾部風險，避免脆弱曝險並追求非對稱性。",
-}
 
 _RECOMMENDED_GROUPS: list[tuple[str, list[int]]] = [
     ("價值穩健組", [1, 2, 3]),
@@ -74,15 +46,15 @@ _SKIP_KEYWORDS = {"skip", "跳過"}
 def _menu_str() -> str:
     lines: list[str] = []
     for k, v in MASTER_MENU.items():
-        philosophy = _MASTER_PHILOSOPHY.get(v, "")
-        lines.append(f"{k}. {_DISPLAY_NAMES[v]}｜{philosophy}")
+        philosophy = MASTER_PHILOSOPHIES.get(v, "")
+        lines.append(f"{k}. {MASTER_DISPLAY_NAMES[v]}｜{philosophy}")
     return "\n".join(lines)
 
 
 def _recommended_groups_str() -> str:
     lines: list[str] = []
     for group_name, nums in _RECOMMENDED_GROUPS:
-        members = "、".join(f"{n}.{_DISPLAY_NAMES[MASTER_MENU[n]]}" for n in nums)
+        members = "、".join(f"{n}.{MASTER_DISPLAY_NAMES[MASTER_MENU[n]]}" for n in nums)
         lines.append(f"- {group_name}：{members}")
     return "\n".join(lines)
 
@@ -98,7 +70,7 @@ def _do_random(state: dict, reason: str) -> str:
     names = _random_sample()
     state["selected_masters"] = names
     state["awaiting_master_choice"] = False
-    display = ", ".join(_DISPLAY_NAMES[n] for n in names)
+    display = ", ".join(MASTER_DISPLAY_NAMES[n] for n in names)
     logger.info("Master selection: %s → random %s", reason, names)
     return f"已隨機選擇 {_MIN} 位大師：{display}"
 
@@ -108,12 +80,13 @@ def _do_select(state: dict, unique: list[int], warnings: list[str]) -> str:
     names = [MASTER_MENU[n] for n in unique]
     state["selected_masters"] = names
     state["awaiting_master_choice"] = False
-    display = ", ".join(_DISPLAY_NAMES[n] for n in names)
+    display = ", ".join(MASTER_DISPLAY_NAMES[n] for n in names)
     logger.info("Master selection: user → %s", names)
     msg = f"已選擇 {len(names)} 位大師：{display}"
     if warnings:
         msg += "\n" + "\n".join(f"  ⚠ {w}" for w in warnings)
     return msg
+
 
 
 def _do_skip(state: dict, reason: str) -> str:
@@ -184,7 +157,7 @@ def select_masters(choice: str, tool_context) -> str:
         names = _random_sample()
         state["selected_masters"] = names
         state["awaiting_master_choice"] = False
-        display = ", ".join(_DISPLAY_NAMES[n] for n in names)
+        display = ", ".join(MASTER_DISPLAY_NAMES[n] for n in names)
         logger.warning("Master selection: parse error %r → random %s", choice, names)
         return (
             f"格式錯誤（{choice!r}），已自動隨機選擇 {_MIN} 位：{display}\n\n"
@@ -199,7 +172,7 @@ def select_masters(choice: str, tool_context) -> str:
         names = _random_sample()
         state["selected_masters"] = names
         state["awaiting_master_choice"] = False
-        display = ", ".join(_DISPLAY_NAMES[n] for n in names)
+        display = ", ".join(MASTER_DISPLAY_NAMES[n] for n in names)
         logger.warning("Master selection: out-of-range %s → random %s", invalid, names)
         return (
             f"編號 {invalid} 超出範圍（1–{len(MASTER_MENU)}），"

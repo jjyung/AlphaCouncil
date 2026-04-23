@@ -14,7 +14,7 @@ bill_ackman = Agent(
     model="gemini-2.5-flash",
     name="bill_ackman",
     description="Bill Ackman：激進主義投資，尋找可透過推動企業變革解鎖價值的標的。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("bill_ackman", _BASE),
     before_agent_callback=make_before_callback("bill_ackman"),
     output_key="bill_ackman_report",
 )

@@ -14,7 +14,7 @@ ben_graham = Agent(
     model="gemini-2.5-flash",
     name="ben_graham",
     description="Ben Graham：安全邊際原則，尋找股價顯著低於內在價值的標的。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("ben_graham", _BASE),
     before_agent_callback=make_before_callback("ben_graham"),
     output_key="ben_graham_report",
 )

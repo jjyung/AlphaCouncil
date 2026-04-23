@@ -14,7 +14,7 @@ michael_burry = Agent(
     model="gemini-2.5-flash",
     name="michael_burry",
     description="Michael Burry：深度逆向投資，在市場恐慌中尋找被嚴重低估或被忽視的資產。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("michael_burry", _BASE),
     before_agent_callback=make_before_callback("michael_burry"),
     output_key="michael_burry_report",
 )

@@ -14,7 +14,7 @@ stanley_druckenmiller = Agent(
     model="gemini-2.5-flash",
     name="stanley_druckenmiller",
     description="Stanley Druckenmiller：宏觀驅動，捕捉流動性與政策轉折點帶來的不對稱風險機會。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("stanley_druckenmiller", _BASE),
     before_agent_callback=make_before_callback("stanley_druckenmiller"),
     output_key="stanley_druckenmiller_report",
 )
