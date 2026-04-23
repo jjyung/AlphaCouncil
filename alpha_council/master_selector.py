@@ -13,10 +13,9 @@ Session state written:
 """
 import logging
 import random
-
+from google.genai import types
 from google.adk.agents.llm_agent import Agent
 
-from alpha_council.intent_gate import skip_if_no_analysis_intent
 from alpha_council.utils.master_runtime import (
     ALL_MASTERS,
     MASTER_DISPLAY_NAMES,
@@ -95,6 +94,18 @@ def _do_skip(state: dict, reason: str) -> str:
     state["awaiting_master_choice"] = False
     logger.info("Master selection: %s → skip masters phase", reason)
     return "已跳過大師分析，將直接以分析師報告作為本輪輸出。"
+
+def skip_if_no_analysis_intent(callback_context) -> types.Content | None:
+    """Silently stop the agent when analysis_intent is explicitly False.
+
+    Returns Content with no parts — sets end_invocation=True (agent won't run)
+    without producing any visible message in the UI.
+    Returns None when flag is True or absent to preserve backward-compatibility.
+    """
+    if callback_context.state.get("analysis_intent") is False:
+        logger.info("Skipping agent: analysis_intent=False.")
+        return types.Content(parts=[])
+    return None
 
 
 def select_masters(choice: str, tool_context) -> str:
