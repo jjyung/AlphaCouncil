@@ -78,7 +78,7 @@ analyst_team = ParallelAgent(
         chip_analyst,
     ],
     before_agent_callback=_skip_analyst_team,
-    description="分析師團隊：目前執行 news_analyst，產出 news_report。其餘分析師（技術、心理、籌碼、基本面）已 import 但尚未加入，可按需啟用。",
+    description="並行執行技術、新聞、市場心理、籌碼面與基本面五位分析師，產出各自的分析報告。",
 )
 
 # Phase 1.5 — 大師選擇（使用者指定 3–7 位，或隨機 3 位）
