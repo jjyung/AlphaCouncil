@@ -65,7 +65,7 @@ flowchart TD
             T["技術分析師"] & N["新聞分析師"] & P["市場心理分析師"] & C["籌碼分析師"] & F["基本面分析師"]
         end
 
-        subgraph P2["Phase 2 — ParallelAgent: masters_panel（可選 3-7 位）"]
+        subgraph P2["Phase 2 — ParallelAgent: masters_panel（可選 0-6 位）"]
             direction LR
             M1["Buffett"] & M2["Graham"] & M3["Munger"] & M4["Damodaran"]
             M5["Ackman"] & M6["Wood"] & M7["Burry"] & M8["Lynch"]
@@ -90,13 +90,6 @@ flowchart TD
         P1 --> P2 --> P3 --> RM --> TRADER --> P5 --> PM
     end
 
-    subgraph DATA["資料層（依 market 路由）"]
-        direction LR
-        US_DATA["US 軌道<br/>yfinance / yfinance news"]
-        TW_DATA["TW 軌道<br/>yfinance .TW/.TWO / 鉅亨網 / TWSE/TPEX API"]
-    end
-
-    PIPELINE --> DATA
 ```
 
 ---
