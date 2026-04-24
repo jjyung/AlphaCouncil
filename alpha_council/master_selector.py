@@ -17,38 +17,46 @@ import random
 from google.adk.agents.llm_agent import Agent
 
 from alpha_council.intent_gate import skip_if_no_analysis_intent
-from alpha_council.utils.master_runtime import ALL_MASTERS
+from alpha_council.utils.master_runtime import (
+    ALL_MASTERS,
+    MASTER_DISPLAY_NAMES,
+    MASTER_PHILOSOPHIES,
+)
 
 logger = logging.getLogger(__name__)
 
 # Menu: 1-based number → master name
 MASTER_MENU: dict[int, str] = {i + 1: name for i, name in enumerate(ALL_MASTERS)}
 
-_DISPLAY_NAMES: dict[str, str] = {
-    "warren_buffett": "Warren Buffett",
-    "ben_graham": "Ben Graham",
-    "charlie_munger": "Charlie Munger",
-    "aswath_damodaran": "Aswath Damodaran",
-    "bill_ackman": "Bill Ackman",
-    "cathie_wood": "Cathie Wood",
-    "michael_burry": "Michael Burry",
-    "peter_lynch": "Peter Lynch",
-    "phil_fisher": "Phil Fisher",
-    "mohnish_pabrai": "Mohnish Pabrai",
-    "stanley_druckenmiller": "Stanley Druckenmiller",
-    "rakesh_jhunjhunwala": "Rakesh Jhunjhunwala",
-    "nassim_taleb": "Nassim Taleb",
-}
+_RECOMMENDED_GROUPS: list[tuple[str, list[int]]] = [
+    ("價值穩健組", [1, 2, 3]),
+    ("成長創新組", [6, 8, 9]),
+    ("宏觀風險組", [7, 11, 13]),
+    ("估值紀律組", [4, 5, 10]),
+]
 
-_MIN = 3
-_MAX = 7
+_MIN = 0
+_MAX = 6
 
 # Keywords that mean "pick for me"
 _RANDOM_KEYWORDS = {"random", "隨機", "你選", "幫我選", "你幫我選", "不指定", "都可以", "隨便"}
+_SKIP_KEYWORDS = {"skip", "跳過"}
 
 
 def _menu_str() -> str:
-    return "\n".join(f"{k}. {_DISPLAY_NAMES[v]}" for k, v in MASTER_MENU.items())
+    lines: list[str] = []
+    for k, v in MASTER_MENU.items():
+        philosophy = MASTER_PHILOSOPHIES.get(v, "")
+        lines.append(f"{k}. {MASTER_DISPLAY_NAMES[v]}｜{philosophy}")
+    return "\n".join(lines)
+
+
+def _recommended_groups_str() -> str:
+    lines: list[str] = []
+    for group_name, nums in _RECOMMENDED_GROUPS:
+        members = "、".join(f"{n}.{MASTER_DISPLAY_NAMES[MASTER_MENU[n]]}" for n in nums)
+        lines.append(f"- {group_name}：{members}")
+    return "\n".join(lines)
 
 
 def _random_sample(n: int = _MIN) -> list[str]:
@@ -62,7 +70,7 @@ def _do_random(state: dict, reason: str) -> str:
     names = _random_sample()
     state["selected_masters"] = names
     state["awaiting_master_choice"] = False
-    display = ", ".join(_DISPLAY_NAMES[n] for n in names)
+    display = ", ".join(MASTER_DISPLAY_NAMES[n] for n in names)
     logger.info("Master selection: %s → random %s", reason, names)
     return f"已隨機選擇 {_MIN} 位大師：{display}"
 
@@ -72,12 +80,21 @@ def _do_select(state: dict, unique: list[int], warnings: list[str]) -> str:
     names = [MASTER_MENU[n] for n in unique]
     state["selected_masters"] = names
     state["awaiting_master_choice"] = False
-    display = ", ".join(_DISPLAY_NAMES[n] for n in names)
+    display = ", ".join(MASTER_DISPLAY_NAMES[n] for n in names)
     logger.info("Master selection: user → %s", names)
     msg = f"已選擇 {len(names)} 位大師：{display}"
     if warnings:
         msg += "\n" + "\n".join(f"  ⚠ {w}" for w in warnings)
     return msg
+
+
+
+def _do_skip(state: dict, reason: str) -> str:
+    """Skip masters phase and keep only analyst outputs for this turn."""
+    state["selected_masters"] = []
+    state["awaiting_master_choice"] = False
+    logger.info("Master selection: %s → skip masters phase", reason)
+    return "已跳過大師分析，將直接以分析師報告作為本輪輸出。"
 
 
 def select_masters(choice: str, tool_context) -> str:
@@ -99,9 +116,14 @@ def select_masters(choice: str, tool_context) -> str:
     state = tool_context.state
     choice = (choice or "").strip()
     awaiting = bool(state.get("awaiting_master_choice"))
+    normalized = choice.lower()
+
+    # ------------------------------------------------------------------ explicit skip
+    if choice == "0" or normalized in _SKIP_KEYWORDS:
+        return _do_skip(state, f"explicit skip {choice!r}")
 
     # ------------------------------------------------------------------ random keyword
-    if choice.lower() in _RANDOM_KEYWORDS or any(k in choice for k in _RANDOM_KEYWORDS):
+    if normalized in _RANDOM_KEYWORDS or any(k in choice for k in _RANDOM_KEYWORDS):
         return _do_random(state, f"keyword {choice!r}")
 
     # ------------------------------------------------------------------ no input
@@ -116,8 +138,11 @@ def select_masters(choice: str, tool_context) -> str:
                 "【已暫停後續流程，等待您選擇投資大師】\n\n"
                 f"請選擇希望分析這支股票的投資大師（{_MIN}~{_MAX} 位）：\n\n"
                 f"{_menu_str()}\n\n"
-                f"請回覆編號，以逗號分隔，例如 \"1,3,7\"。\n"
-                f"若希望系統隨機選擇，請回覆「隨機」。"
+                "【建議組合（按照風格分組，可直接照抄編號）】\n"
+                f"{_recommended_groups_str()}\n\n"
+                f"請回覆編號，以逗號分隔，例如 \"1,2,3\"。\n"
+                f"若希望系統隨機選擇，請回覆「隨機」。\n"
+                f"若想跳過大師分析，請回覆「跳過」或「0」。"
             )
         else:
             # User replied but still no choice → give up and random
@@ -132,7 +157,7 @@ def select_masters(choice: str, tool_context) -> str:
         names = _random_sample()
         state["selected_masters"] = names
         state["awaiting_master_choice"] = False
-        display = ", ".join(_DISPLAY_NAMES[n] for n in names)
+        display = ", ".join(MASTER_DISPLAY_NAMES[n] for n in names)
         logger.warning("Master selection: parse error %r → random %s", choice, names)
         return (
             f"格式錯誤（{choice!r}），已自動隨機選擇 {_MIN} 位：{display}\n\n"
@@ -147,7 +172,7 @@ def select_masters(choice: str, tool_context) -> str:
         names = _random_sample()
         state["selected_masters"] = names
         state["awaiting_master_choice"] = False
-        display = ", ".join(_DISPLAY_NAMES[n] for n in names)
+        display = ", ".join(MASTER_DISPLAY_NAMES[n] for n in names)
         logger.warning("Master selection: out-of-range %s → random %s", invalid, names)
         return (
             f"編號 {invalid} 超出範圍（1–{len(MASTER_MENU)}），"
@@ -184,6 +209,7 @@ Rakesh Jhunjhunwala(12), Nassim Taleb(13)
 【執行順序 — 不可跳過步驟 1】
 步驟 1：立即呼叫 select_masters(choice=<字串>)，choice 規則如下：
   - 使用者訊息含逗號分隔編號（如 "1,3,5" 或 "master_choice=1,3,5"）→ 傳入該編號字串
+  - 使用者訊息為「跳過」或 "0" → 傳入 "0"
   - 含「隨機」「你選」「幫我選」「不指定」等字 → 傳入 "random"
   - 未明確指定 → 傳入 ""
 步驟 2：將工具回傳文字原樣輸出，不要自行列出大師清單或修改格式。
@@ -196,6 +222,7 @@ _AWAITING_SELECTOR_INSTRUCTION = """你是大師選擇助手。使用者正在�
 任務：
 1. 從使用者訊息中提取大師選擇：
    - 若是數字列表（如 "1,3,7"），提取為 choice="1,3,7"
+   - 若是「跳過」或 "0"，提取為 choice="0"
    - 若包含「隨機」「你選」「幫我選」「不指定」等，提取為 choice="random"
    - 若無法辨識，傳入 choice=""（系統將隨機選擇）
 2. 呼叫 select_masters(choice=<字串>) 完成選擇。

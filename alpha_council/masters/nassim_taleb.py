@@ -14,7 +14,7 @@ nassim_taleb = Agent(
     model="gemini-2.5-flash",
     name="nassim_taleb",
     description="Nassim Taleb：尾部風險防護與槓鈴策略，避免脆弱性、擁抱反脆弱機會。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("nassim_taleb", _BASE),
     before_agent_callback=make_before_callback("nassim_taleb"),
     output_key="nassim_taleb_report",
 )

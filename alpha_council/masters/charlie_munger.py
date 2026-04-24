@@ -14,7 +14,7 @@ charlie_munger = Agent(
     model="gemini-2.5-flash",
     name="charlie_munger",
     description="Charlie Munger：跨學科心智模型，只買最頂尖的企業，寧可等待也不將就。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("charlie_munger", _BASE),
     before_agent_callback=make_before_callback("charlie_munger"),
     output_key="charlie_munger_report",
 )

@@ -14,7 +14,7 @@ cathie_wood = Agent(
     model="gemini-2.5-flash",
     name="cathie_wood",
     description="Cathie Wood：聚焦顛覆性創新平台，以 5 年以上時間框架評估爆發性成長潛力。",
-    instruction=make_instruction(_BASE),
+    instruction=make_instruction("cathie_wood", _BASE),
     before_agent_callback=make_before_callback("cathie_wood"),
     output_key="cathie_wood_report",
 )
