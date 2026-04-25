@@ -5,6 +5,7 @@ from google.adk.agents.sequential_agent import SequentialAgent
 from google.genai import types
 
 from alpha_council.utils.master_runtime import DynamicMastersPanel, build_reports_context
+from alpha_council.utils.market_snapshot import build_snapshot_context
 
 from alpha_council.analysts import (
     technical_analyst,
@@ -127,28 +128,40 @@ risk_debate = LoopAgent(
 
 # Phase 6 — 投資組合管理人最終決策
 def _portfolio_manager_instruction(ctx) -> str:
-    context_block = build_reports_context(ctx.state, ["research_report?", "trader_plan?"])
+    snapshot_block = build_snapshot_context(ctx.state)
+    upstream_block = build_reports_context(ctx.state, ["research_report?", "trader_plan?"])
+    risk_block = build_reports_context(
+        ctx.state,
+        ["aggressive_argument?", "neutral_argument?", "conservative_argument?"],
+    )
     base = (
         "你是投資組合管理人，負責做出最終投資決策。\n\n"
-        "根據研究管理人的裁決與交易員的執行計畫，輸出以下結構：\n"
+        "上方已提供【市場即時快照】、研究管理人裁決、交易員執行計畫與風險辯論三方最終論點。"
+        "綜合所有資訊，輸出以下結構：\n"
         "1. **最終決策**：買入 / 持有 / 賣出（需與研究信號一致或說明偏差理由）\n"
-        "2. **建議倉位比例**（相對總投資組合的百分比）\n"
-        "3. **風險敞口控管**（最大可接受損失、停損設定）\n"
-        "4. **退出策略**（目標價達成或停損觸發條件）\n"
+        "2. **建議倉位比例**：以 `position_guidance.suggested_max_position_pct` 為錨點；"
+        "明確說明綜合風險辯論三方意見後是否調整，並量化差異（如：激進方主張 30%、保守方主張 10%、系統建議 20%，最終採 X% 並說明加權邏輯）\n"
+        "3. **風險敞口控管**：\n"
+        "   - 停損設定：引用或調整 `position_guidance.stop_loss.suggested_stop_price`，並參考保守方是否建議更嚴格倍數\n"
+        "   - 最大可接受損失：以「倉位 % × 停損損失幅度」估算組合層級風險敞口\n"
+        "4. **退出策略**：目標價以 ATR 倍數表達（如「進場價 + 3×ATR」），並列出提前出場觸發條件（如 vol_band 升級、基本面惡化）\n"
+        "5. **辯論採納說明**：明確指出最終決策採納了激進、中立、保守三方中哪些具體觀點、"
+        "駁回了哪些、為何。不得對三方論點視而不見。\n"
     )
-    if context_block:
-        return (
-            "【研究管理人裁決與交易員計畫】\n\n"
-            f"{context_block}\n\n"
-            "---\n\n"
-            f"{base}"
-        )
-    return base
+    parts: list[str] = []
+    if snapshot_block:
+        parts.append(snapshot_block)
+    if upstream_block:
+        parts.append(f"【研究管理人裁決與交易員計畫】\n\n{upstream_block}")
+    if risk_block:
+        parts.append(f"【風險辯論三方最終論點】\n\n{risk_block}")
+    parts.append(base)
+    return "\n\n---\n\n".join(parts)
 
 portfolio_manager = Agent(
     model="gemini-2.5-flash",
     name="portfolio_manager",
-    description="整合所有分析與風險辯論，做出最終投資組合決策，包含倉位大小與風險控管措施。",
+    description="整合所有分析、風險辯論與市場真實數據，做出最終投資組合決策，包含倉位大小與風險控管措施。",
     before_agent_callback=_skip_downstream,
     instruction=_portfolio_manager_instruction,
 )

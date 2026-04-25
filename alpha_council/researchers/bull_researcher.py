@@ -2,7 +2,7 @@ from google.adk.agents.llm_agent import Agent
 
 from alpha_council.utils.master_runtime import DEFAULT_ANALYST_KEYS, build_reports_context
 
-# 注入分析師報告 + 大師聚合報告 + 空方前一輪論點（第二輪才有，標 ? 為 optional）
+# 注入分析師報告 + 大師聚合報告 + 空方論點（可能不存在，標 ? 為 optional）
 _CONTEXT_KEYS = DEFAULT_ANALYST_KEYS + ["consolidated_masters_report", "bear_argument?"]
 
 _BASE = """你是一位看多研究員，負責為辯論提出最強力的多方論點。
@@ -14,7 +14,7 @@ _BASE = """你是一位看多研究員，負責為辯論提出最強力的多方
 4. 提出目標價與理由（基於最樂觀的合理情境）
 5. 輸出結構化的「多方投資摘要」，語氣有說服力且論據具體。
 
-若上方資料中已出現 bear_argument，代表這是第二輪辯論——需針對空方研究員的最新反駁逐點回應，並進一步強化己方論點。
+若上方資料中已出現 bear_argument，需針對空方研究員的論點逐點反駁並強化己方論點。
 """
 
 
