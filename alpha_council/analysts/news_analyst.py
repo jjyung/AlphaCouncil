@@ -127,24 +127,24 @@ def _check_link(
             return "unknown", f"HTTP {head_code}"
 
         # --- Step 2: GET (needed for soft-404 check or HEAD not usable) ---
-        gr = session.get(url, allow_redirects=True, timeout=timeout, stream=True)
-        get_code = gr.status_code
+        with session.get(url, allow_redirects=True, timeout=timeout, stream=True) as gr:
+            get_code = gr.status_code
 
-        if get_code in (404, 410):
-            cache[url] = "broken"
-            return "broken", f"HTTP {get_code}"
+            if get_code in (404, 410):
+                cache[url] = "broken"
+                return "broken", f"HTTP {get_code}"
 
-        if get_code == 200:
-            text = _read_body(gr)
-            hit = _soft404(text)
-            if hit:
-                cache[url] = "soft404"
-                return "soft404", f"soft 404（token: {hit!r}）"
-            cache[url] = "ok"
-            return "ok", ""
+            if get_code == 200:
+                text = _read_body(gr)
+                hit = _soft404(text)
+                if hit:
+                    cache[url] = "soft404"
+                    return "soft404", f"soft 404（token: {hit!r}）"
+                cache[url] = "ok"
+                return "ok", ""
 
-        cache[url] = "unknown"
-        return "unknown", f"HTTP {get_code}"
+            cache[url] = "unknown"
+            return "unknown", f"HTTP {get_code}"
 
     except requests.RequestException as exc:
         cache[url] = "unknown"
@@ -306,8 +306,6 @@ def get_news(
     articles: list[dict] = []
     source_status: dict[str, str] = {}
 
-    _FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AlphaCouncil/1.0)"}
-
     # ------------------------------------------------------------------
     # Early exit for unsupported markets
     # ------------------------------------------------------------------
@@ -356,30 +354,27 @@ def get_news(
                 continue  # 0 entries → try next candidate
             # Found a live feed — build article list and stop
             _ed_success_url = _ed_url
-            for entry in _ed_feed.entries[:20]:
-                title = entry.get("title", "")
-                if ticker_clean in title or ticker in title or not items:
-                    items.append(
-                        {
-                            "title": title,
-                            "link": entry.get("link", ""),
-                            "published": entry.get("published", ""),
-                            "summary": entry.get("summary", ""),
-                            "source": "經濟日報",
-                        }
-                    )
-            # No ticker hits in the matched pass → fall back to top-10 general
-            if not any(ticker_clean in i["title"] or ticker in i["title"] for i in items):
-                items = [
-                    {
-                        "title": e.get("title", ""),
-                        "link": e.get("link", ""),
-                        "published": e.get("published", ""),
-                        "summary": e.get("summary", ""),
-                        "source": "經濟日報",
-                    }
-                    for e in _ed_feed.entries[:10]
-                ]
+            matched = [
+                {
+                    "title": e.get("title", ""),
+                    "link": e.get("link", ""),
+                    "published": e.get("published", ""),
+                    "summary": e.get("summary", ""),
+                    "source": "經濟日報",
+                }
+                for e in _ed_feed.entries[:20]
+                if ticker_clean in e.get("title", "") or ticker in e.get("title", "")
+            ]
+            items = matched if matched else [
+                {
+                    "title": e.get("title", ""),
+                    "link": e.get("link", ""),
+                    "published": e.get("published", ""),
+                    "summary": e.get("summary", ""),
+                    "source": "經濟日報",
+                }
+                for e in _ed_feed.entries[:10]
+            ]
             break  # successful feed found; don't try remaining candidates
 
         if _ed_success_url is None:
@@ -430,7 +425,7 @@ def get_news(
         cnyes_url = (
             f"https://news.cnyes.com/news/cat/tw_stock_news?keyword={ticker_clean}"
         )
-        resp = requests.get(cnyes_url, headers=_FETCH_HEADERS, timeout=10)
+        resp = requests.get(cnyes_url, headers={"User-Agent": _BROWSER_UA}, timeout=10)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "lxml")
 
@@ -462,6 +457,18 @@ def get_news(
         source_status["鉅亨網_HTML"] = f"ok ({len(items)} items)"
     except Exception as exc:
         source_status["鉅亨網_HTML"] = f"error: {exc}"
+
+    # ------------------------------------------------------------------
+    # Cross-source deduplication by title
+    # ------------------------------------------------------------------
+    seen_titles: set[str] = set()
+    deduped: list[dict] = []
+    for article in articles:
+        title = article.get("title", "")
+        if not title or title not in seen_titles:
+            seen_titles.add(title)
+            deduped.append(article)
+    articles = deduped
 
     # ------------------------------------------------------------------
     # Link validation
@@ -569,7 +576,7 @@ news_analyst = Agent(
   - published
   - summary
   - source
-  - link_status (ok / unknown / broken / soft404 / skipped)
+  - link_status (ok / unknown / broken / skipped)
   - link_validation_note (optional)
 
 --------------------------------
