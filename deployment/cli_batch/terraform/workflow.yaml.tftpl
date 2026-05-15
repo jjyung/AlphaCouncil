@@ -43,9 +43,18 @@ main:
                   operation_name: $${operation_request.body.name}
                   poll_interval_seconds: ${poll_interval_seconds}
                 result: job_result
+            - build_result:
+                assign:
+                  - current_result:
+                      ticker: $${ticker}
+                      operation_name: $${operation_request.body.name}
+                      execution_name: $${job_result.execution_name}
+                      success: $${job_result.success}
+                      completed_status: $${job_result.completed_status}
+                      message: $${job_result.message}
             - append_result:
                 assign:
-                  - results: $${list.concat(results, [{"ticker": ticker, "operation_name": operation_request.body.name, "execution_name": job_result.execution_name, "success": job_result.success, "completed_status": job_result.completed_status, "message": job_result.message}])}
+                  - results: '$${list.concat(results, [current_result])}'
             - sleep_between_tickers:
                 call: sys.sleep
                 args:
