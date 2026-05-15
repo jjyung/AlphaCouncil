@@ -43,7 +43,12 @@ def test_build_user_message_includes_masters_choice() -> None:
 
 def test_run_command_persist_enabled(monkeypatch) -> None:
     outcome = run.RunOutcome(
-        status="SUCCEEDED", final_text="buy", session_id="s1", state={}, event_count=3
+        status="SUCCEEDED",
+        final_text="buy",
+        session_id="s1",
+        state={},
+        event_count=3,
+        error_messages=[],
     )
 
     async def fake_run_pipeline(**kwargs):
@@ -61,7 +66,12 @@ def test_run_command_persist_enabled(monkeypatch) -> None:
 
 def test_run_command_failed_status(monkeypatch) -> None:
     outcome = run.RunOutcome(
-        status="FAILED", final_text="", session_id="s1", state={}, event_count=2
+        status="FAILED",
+        final_text="",
+        session_id="s1",
+        state={},
+        event_count=2,
+        error_messages=[],
     )
 
     async def fake_run_pipeline(**kwargs):
@@ -72,3 +82,121 @@ def test_run_command_failed_status(monkeypatch) -> None:
     args = run.build_parser().parse_args(["run", "--ticker", "AAPL", "--market", "us"])
     code = asyncio.run(run._run_command(args))
     assert code == run.EXIT_EXPECTED_ERROR
+
+
+def test_run_pipeline_with_retry_retries_resource_exhausted(monkeypatch) -> None:
+    outcomes = [
+        run.RunOutcome(
+            status="FAILED",
+            final_text="",
+            session_id="s1",
+            state={},
+            event_count=1,
+            error_messages=["RESOURCE_EXHAUSTED 429"],
+        ),
+        run.RunOutcome(
+            status="SUCCEEDED",
+            final_text="buy",
+            session_id="s2",
+            state={},
+            event_count=2,
+            error_messages=[],
+        ),
+    ]
+    sleep_calls: list[int] = []
+
+    async def fake_run_pipeline(**kwargs):
+        return outcomes.pop(0)
+
+    async def fake_sleep(seconds: int) -> None:
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(run, "_run_pipeline", fake_run_pipeline)
+    monkeypatch.setattr(run.asyncio, "sleep", fake_sleep)
+
+    outcome = asyncio.run(
+        run._run_pipeline_with_retry(
+            ticker="2330",
+            market="tw",
+            masters=[],
+            masters_raw=None,
+            timeout_sec=30,
+            debug=False,
+        )
+    )
+
+    assert outcome.status == "SUCCEEDED"
+    assert sleep_calls == [300]
+
+
+def test_run_pipeline_with_retry_does_not_retry_non_429(monkeypatch) -> None:
+    outcome = run.RunOutcome(
+        status="FAILED",
+        final_text="",
+        session_id="s1",
+        state={},
+        event_count=1,
+        error_messages=["permission denied"],
+    )
+    sleep_calls: list[int] = []
+
+    async def fake_run_pipeline(**kwargs):
+        return outcome
+
+    async def fake_sleep(seconds: int) -> None:
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(run, "_run_pipeline", fake_run_pipeline)
+    monkeypatch.setattr(run.asyncio, "sleep", fake_sleep)
+
+    result = asyncio.run(
+        run._run_pipeline_with_retry(
+            ticker="2330",
+            market="tw",
+            masters=[],
+            masters_raw=None,
+            timeout_sec=30,
+            debug=False,
+        )
+    )
+
+    assert result is outcome
+    assert sleep_calls == []
+
+
+def test_run_pipeline_with_retry_retries_exception_group(monkeypatch) -> None:
+    calls = {"count": 0}
+    sleep_calls: list[int] = []
+
+    async def fake_run_pipeline(**kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise ExceptionGroup("run failed", [RuntimeError("429 RESOURCE_EXHAUSTED")])
+        return run.RunOutcome(
+            status="SUCCEEDED",
+            final_text="buy",
+            session_id="s2",
+            state={},
+            event_count=2,
+            error_messages=[],
+        )
+
+    async def fake_sleep(seconds: int) -> None:
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(run, "_run_pipeline", fake_run_pipeline)
+    monkeypatch.setattr(run.asyncio, "sleep", fake_sleep)
+
+    outcome = asyncio.run(
+        run._run_pipeline_with_retry(
+            ticker="AAPL",
+            market="us",
+            masters=[],
+            masters_raw=None,
+            timeout_sec=30,
+            debug=False,
+        )
+    )
+
+    assert outcome.status == "SUCCEEDED"
+    assert sleep_calls == [300]

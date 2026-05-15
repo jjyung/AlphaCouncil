@@ -3,7 +3,7 @@
 這個目錄只管理 CLI Batch 實驗線的資源：
 
 - Cloud Run Job
-- Workflows fan-out workflow
+- Workflows sequential batch workflow
 - Cloud Scheduler
 - CLI Batch 專用 service accounts 與 IAM
 
@@ -54,3 +54,5 @@ make check-cli-execution \
 - 這裡不管理 Agent Service
 - `cli_image` 必須是已存在且可被 Cloud Run Job 拉取的容器映像
 - Scheduler 會把固定參數送進 Workflow；手動執行 Workflow 時也要提供同樣 shape 的 `argument` JSON
+- Workflow 會依序執行每個 ticker，等待該 Cloud Run Job 完成後，再間隔至少 500ms 啟動下一檔
+- 單一 ticker 若遇到 Vertex `429 / RESOURCE_EXHAUSTED`，CLI 會自動重試 3 次，等待時間依序為 5、10、15 分鐘

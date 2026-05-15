@@ -7,7 +7,7 @@ Agent Service 部署請看 `docs/deployment/agent-service.md`。本文件只涵�
 ## 1) 實驗目標
 
 - 固定時間觸發分析
-- 一次傳入多個股票代號並行執行
+- 一次傳入多個股票代號，依序執行
 - 結果寫入 GCS，累積 n 天資料供回測
 
 ## 2) 固定參數（目前決議）
@@ -27,7 +27,7 @@ Agent Service 部署請看 `docs/deployment/agent-service.md`。本文件只涵�
 ## 3) 執行拓樸
 
 - Cloud Scheduler：定時觸發
-- Cloud Workflows：並行 fan-out（多 ticker，負責啟動 jobs）
+- Cloud Workflows：逐檔執行與等待完成（多 ticker，負責啟動 jobs）
 - Cloud Run Job：執行 `alpha-council run`
 - GCS：持久化報告
 
@@ -99,7 +99,11 @@ make build-cli-image CLI_IMAGE_TAG=latest
 make deploy-cli-batch CLI_BATCH_VARS_FILE=terraform.tfvars CLI_IMAGE_TAG=latest
 ```
 
-目前 Workflow 成功代表「所有 ticker 的 Cloud Run Job 已成功啟動」，最終完成狀態需再看 Job executions 與 GCS 報告檔。
+目前 Workflow 會依序處理每個 ticker，等待前一檔 Cloud Run Job 完成後，再間隔至少 500ms 啟動下一檔。
+
+單一 ticker 若遇到 Vertex `429 / RESOURCE_EXHAUSTED`，CLI 會自動重試 3 次，等待時間依序為 5、10、15 分鐘；其他錯誤不重試。
+
+Workflow 完成代表整批 ticker 都已跑完，回傳 payload 會包含每檔 ticker 的成功/失敗摘要。若某一檔失敗，Workflow 仍會繼續執行後續 ticker，最終由 summary 彙整結果。
 
 建議用 execution completion checker 驗證單次執行：
 

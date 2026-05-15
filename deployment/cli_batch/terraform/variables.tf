@@ -39,7 +39,7 @@ variable "market" {
 }
 
 variable "tickers" {
-  description = "Ticker list scheduled for fan-out execution."
+  description = "Ticker list scheduled for sequential batch execution."
   type        = list(string)
   default = [
     "2330",

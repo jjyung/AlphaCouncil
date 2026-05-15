@@ -8,38 +8,92 @@ main:
           - masters: $${input.masters}
           - report_format: $${input.report_format}
           - timeout_seconds: $${input.timeout_seconds}
+          - results: []
     - run_jobs:
-        parallel:
-          for:
-            value: ticker
-            in: $${tickers}
-            steps:
-              - start_job:
-                  call: http.post
-                  args:
-                    url: https://run.googleapis.com/v2/projects/${project_id}/locations/${region}/jobs/${job_name}:run
-                    auth:
-                      type: OAuth2
-                      scope: https://www.googleapis.com/auth/cloud-platform
-                    body:
-                      overrides:
-                        containerOverrides:
-                          - name: ${job_container_name}
-                            args:
-                              - "--ticker"
-                              - $${ticker}
-                              - "--market"
-                              - $${market}
-                              - "--masters"
-                              - $${masters}
-                              - "--report-format"
-                              - $${report_format}
-                              - "--timeout-seconds"
-                              - $${timeout_seconds}
-                  result: operation_request
+        for:
+          value: ticker
+          in: $${tickers}
+          steps:
+            - start_job:
+                call: http.post
+                args:
+                  url: https://run.googleapis.com/v2/projects/${project_id}/locations/${region}/jobs/${job_name}:run
+                  auth:
+                    type: OAuth2
+                    scope: https://www.googleapis.com/auth/cloud-platform
+                  body:
+                    overrides:
+                      containerOverrides:
+                        - name: ${job_container_name}
+                          args:
+                            - "--ticker"
+                            - $${ticker}
+                            - "--market"
+                            - $${market}
+                            - "--masters"
+                            - $${masters}
+                            - "--report-format"
+                            - $${report_format}
+                            - "--timeout-seconds"
+                            - $${timeout_seconds}
+                result: operation_request
+            - wait_for_job:
+                call: wait_for_run_operation
+                args:
+                  operation_name: $${operation_request.body.name}
+                  poll_interval_seconds: ${poll_interval_seconds}
+                result: job_result
+            - append_result:
+                assign:
+                  - results: $${list.concat(results, [{"ticker": ticker, "operation_name": operation_request.body.name, "execution_name": job_result.execution_name, "success": job_result.success, "completed_status": job_result.completed_status, "message": job_result.message}])}
+            - sleep_between_tickers:
+                call: sys.sleep
+                args:
+                  seconds: 0.5
     - done:
         return:
-          status: STARTED
+          status: COMPLETED
           tickers: $${tickers}
           market: $${market}
           report_format: $${report_format}
+          results: $${results}
+
+wait_for_run_operation:
+  params: [operation_name, poll_interval_seconds]
+  steps:
+    - get_operation:
+        call: http.get
+        args:
+          url: $${"https://run.googleapis.com/v2/" + operation_name}
+          auth:
+            type: OAuth2
+            scope: https://www.googleapis.com/auth/cloud-platform
+        result: operation_status
+    - operation_complete:
+        switch:
+          - condition: $${operation_status.body.done == true}
+            next: summarize_operation
+        next: wait_before_poll
+    - wait_before_poll:
+        call: sys.sleep
+        args:
+          seconds: $${poll_interval_seconds}
+    - poll_again:
+        next: get_operation
+    - summarize_operation:
+        switch:
+          - condition: $${map.get(operation_status.body, "error") == null}
+            next: return_success
+        next: return_failure
+    - return_success:
+        return:
+          success: true
+          completed_status: SUCCEEDED
+          execution_name: $${map.get(map.get(operation_status.body, "metadata", {}), "name", "")}
+          message: ""
+    - return_failure:
+        return:
+          success: false
+          completed_status: FAILED
+          execution_name: $${map.get(map.get(operation_status.body, "metadata", {}), "name", "")}
+          message: $${json.encode_to_string(map.get(operation_status.body, "error"))}

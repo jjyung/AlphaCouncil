@@ -138,7 +138,7 @@ resource "google_cloud_run_v2_job" "cli_batch" {
 resource "google_workflows_workflow" "cli_batch" {
   name            = local.workflow_name
   region          = var.region
-  description     = "AlphaCouncil CLI batch fan-out workflow"
+  description     = "AlphaCouncil CLI batch sequential workflow"
   service_account = google_service_account.cli_batch_workflow.email
   labels          = var.labels
 

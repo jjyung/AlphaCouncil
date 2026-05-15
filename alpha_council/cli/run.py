@@ -15,6 +15,8 @@ EXIT_OK = 0
 EXIT_EXPECTED_ERROR = 2
 EXIT_UNEXPECTED_ERROR = 3
 DEFAULT_TIMEOUT_SECONDS = 1800
+RETRYABLE_STATUS_TOKENS = ("429", "resource_exhausted", "resource exhausted")
+RETRY_BACKOFF_SECONDS = (300, 600, 900)
 
 
 class CliUsageError(ValueError):
@@ -28,6 +30,7 @@ class RunOutcome:
     session_id: str
     state: dict
     event_count: int
+    error_messages: list[str]
 
 
 def _strip_wrapped_quotes(value: str) -> str:
@@ -185,6 +188,34 @@ def _has_error_event(events: list) -> bool:
     return False
 
 
+def _collect_error_messages(events: list) -> list[str]:
+    messages: list[str] = []
+    for event in events:
+        error_code = getattr(event, "error_code", None)
+        error_message = getattr(event, "error_message", None)
+        if error_code:
+            messages.append(str(error_code))
+        if error_message:
+            messages.append(str(error_message))
+    return messages
+
+
+def _is_retryable_resource_exhausted(messages: list[str]) -> bool:
+    if not messages:
+        return False
+    merged = "\n".join(messages).lower()
+    return any(token in merged for token in RETRYABLE_STATUS_TOKENS)
+
+
+def _exception_messages(exc: BaseException) -> list[str]:
+    if isinstance(exc, ExceptionGroup):
+        messages: list[str] = []
+        for sub_exc in exc.exceptions:
+            messages.extend(_exception_messages(sub_exc))
+        return messages
+    return [str(exc)]
+
+
 async def _run_pipeline(
     *,
     ticker: str,
@@ -268,6 +299,7 @@ async def _run_pipeline(
             session_id=session_id,
             state=dict(session.state) if session else {},
             event_count=len(events),
+            error_messages=[],
         )
 
     session = await session_service.get_session(
@@ -283,6 +315,7 @@ async def _run_pipeline(
             session_id=session_id,
             state=state,
             event_count=len(events),
+            error_messages=_collect_error_messages(events),
         )
     return RunOutcome(
         status="SUCCEEDED",
@@ -290,6 +323,67 @@ async def _run_pipeline(
         session_id=session_id,
         state=state,
         event_count=len(events),
+        error_messages=[],
+    )
+
+
+async def _run_pipeline_with_retry(
+    *,
+    ticker: str,
+    market: str,
+    masters: list[str],
+    masters_raw: str | None,
+    timeout_sec: int,
+    debug: bool,
+) -> RunOutcome:
+    last_outcome: RunOutcome | None = None
+
+    for attempt in range(len(RETRY_BACKOFF_SECONDS) + 1):
+        try:
+            outcome = await _run_pipeline(
+                ticker=ticker,
+                market=market,
+                masters=masters,
+                masters_raw=masters_raw,
+                timeout_sec=timeout_sec,
+                debug=debug,
+            )
+        except Exception as exc:
+            messages = _exception_messages(exc)
+            if attempt == len(RETRY_BACKOFF_SECONDS) or not _is_retryable_resource_exhausted(messages):
+                raise
+            delay = RETRY_BACKOFF_SECONDS[attempt]
+            print(
+                f"retryable 429/resource_exhausted for {ticker}; retrying in {delay // 60} minutes "
+                f"(attempt {attempt + 1}/{len(RETRY_BACKOFF_SECONDS)})",
+                flush=True,
+            )
+            await asyncio.sleep(delay)
+            continue
+
+        last_outcome = outcome
+        if outcome.status == "SUCCEEDED":
+            return outcome
+        if attempt == len(RETRY_BACKOFF_SECONDS) or not _is_retryable_resource_exhausted(
+            outcome.error_messages
+        ):
+            return outcome
+
+        delay = RETRY_BACKOFF_SECONDS[attempt]
+        print(
+            f"retryable 429/resource_exhausted for {ticker}; retrying in {delay // 60} minutes "
+            f"(attempt {attempt + 1}/{len(RETRY_BACKOFF_SECONDS)})",
+            flush=True,
+        )
+        await asyncio.sleep(delay)
+
+    return last_outcome or RunOutcome(
+        status="FAILED",
+        final_text="",
+        session_id="",
+        state={},
+        event_count=0,
+        error_messages=[],
     )
 
 
@@ -411,7 +505,7 @@ async def _run_command(args: argparse.Namespace) -> int:
     masters = parse_masters(args.masters)
     report_format = _resolve_report_format(args.report_format)
 
-    outcome = await _run_pipeline(
+    outcome = await _run_pipeline_with_retry(
         ticker=ticker,
         market=market,
         masters=masters,
