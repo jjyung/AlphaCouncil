@@ -98,11 +98,11 @@ wait_for_run_operation:
         return:
           success: true
           completed_status: SUCCEEDED
-          execution_name: $${map.get(map.get(operation_status.body, "metadata", {}), "name", "")}
+          execution_name: $${operation_status.body.metadata.name}
           message: ""
     - return_failure:
         return:
           success: false
           completed_status: FAILED
-          execution_name: $${map.get(map.get(operation_status.body, "metadata", {}), "name", "")}
+          execution_name: $${operation_status.body.metadata.name}
           message: $${json.encode_to_string(map.get(operation_status.body, "error"))}
