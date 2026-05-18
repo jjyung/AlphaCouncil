@@ -226,6 +226,7 @@ def make_instruction(
     master_name: str,
     base_instruction: str,
     report_key_specs: list[str] | None = None,
+    scoring_block_fn=None,
 ):
     """Return a callable instruction that prepends analyst reports at runtime.
 
@@ -234,6 +235,12 @@ def make_instruction(
         base_instruction:  The master's original system-prompt string.
         report_key_specs:  List of "key" / "key?" specs to inject from state.
                            Defaults to DEFAULT_ANALYST_KEYS if None.
+        scoring_block_fn:  Optional callable `(state) -> str`. When provided,
+                           its return value is injected into the master-specific
+                           tail (after the display-name header, before the
+                           persona prompt). Per-master / per-ticker numeric
+                           scorecards live here so the shared analyst-report
+                           prefix stays byte-identical across masters.
 
     The returned callable matches ADK's InstructionProvider signature:
         (ReadonlyContext) -> str
@@ -245,16 +252,29 @@ def make_instruction(
         state = ctx.state
         context_block = build_reports_context(state, specs)
 
+        scoring_block = ""
+        if scoring_block_fn is not None:
+            try:
+                scoring_block = scoring_block_fn(state) or ""
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "make_instruction: scoring_block_fn failed for %r; degrading to LLM-only.",
+                    master_name,
+                )
+
         # Master-specific text is kept at the END of the prompt so that the
         # shared analyst-report prefix is byte-identical across all masters
         # using the same `report_key_specs`. This lets Gemini's implicit
         # context cache hit on master 2..N and skip re-billing the prefix.
-        master_specific_tail = (
+        tail_sections = [
             f"【回應格式規範 — 極重要】\n"
             f"你的回應必須以 Markdown 一級標題開始，內容為你的名字：\n"
-            f"# {display_name}\n\n"
-            f"{base_instruction}"
-        )
+            f"# {display_name}",
+        ]
+        if scoring_block:
+            tail_sections.append(scoring_block)
+        tail_sections.append(base_instruction)
+        master_specific_tail = "\n\n".join(tail_sections)
 
         if context_block:
             return (

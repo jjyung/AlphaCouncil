@@ -8,6 +8,7 @@ from google.genai import types
 
 from alpha_council.utils.master_runtime import DynamicMastersPanel, build_reports_context
 from alpha_council.utils.market_snapshot import build_snapshot_context
+from alpha_council.utils.shared_data_snapshot import SharedDataSnapshotAgent
 
 from alpha_council.analysts import (
     technical_analyst,
@@ -83,6 +84,15 @@ analyst_team = ParallelAgent(
 # Phase 1.5 — 大師選擇（使用者指定 3–7 位，或隨機 3 位）
 # before_agent_callback=skip_if_no_analysis_intent already on master_selector_agent.
 # Writes selected_masters: list[str] and awaiting_master_choice: bool to session state.
+
+# Phase 1.6 — 共用資料快照：在分析師團隊跑完後、masters_panel 之前，
+# 一次抓齊 financial_metrics / line_items / market_cap / insider_trades /
+# company_news / prices，存入 shared_data:* 鍵供所有 master scoring 共用。
+# Ticker 從 analyst reports 解析，因此必須在 analyst_team 之後。
+shared_data_snapshot = SharedDataSnapshotAgent(
+    name="shared_data_snapshot",
+    description="從 analyst 報告解析 ticker，呼叫 providers 抓取 6 個共用資料點，存入 session state。",
+)
 
 # Phase 2 — 13 位投資大師（僅執行已選中的大師）
 # Skip logic handled inside DynamicMastersPanel._run_async_impl:
@@ -177,6 +187,11 @@ portfolio_manager = Agent(
 # Session state keys:
 #   analyst_team         → news_report, technical_report, psychology_report, fundamentals_report, chip_report
 #   master_selector      → selected_masters: list[str], awaiting_master_choice: bool
+#   shared_data_snapshot → shared_data:ticker, shared_data:market,
+#                          shared_data:financial_metrics, shared_data:line_items,
+#                          shared_data:market_cap, shared_data:insider_trades,
+#                          shared_data:company_news, shared_data:prices,
+#                          shared_data:fetched_at
 #   masters_panel        → {name}_report for each selected master
 #                        + consolidated_masters_report
 #   bull_researcher      → bull_argument  (每輪覆寫，第二輪已含對 bear 的回應)
@@ -189,6 +204,7 @@ alpha_council_pipeline_agent = SequentialAgent(
     sub_agents=[
         analyst_team,
         master_selector_agent,
+        shared_data_snapshot,
         masters_panel,
         research_debate,
         research_manager,
@@ -199,7 +215,7 @@ alpha_council_pipeline_agent = SequentialAgent(
     before_agent_callback=stock_code_guard_callback,
     description=(
         "AlphaCouncil 投資分析流水線（SequentialAgent）："
-        "股票代號格式檢查 → 分析師團隊 → 大師選擇 → 大師觀點（含聚合）→ 研究辯論 → 研究裁決 → 交易員 → 風險辯論 → 投資組合管理人。"
+        "股票代號格式檢查 → 分析師團隊 → 大師選擇 → 共用資料快照 → 大師觀點（含聚合）→ 研究辯論 → 研究裁決 → 交易員 → 風險辯論 → 投資組合管理人。"
         "各階段透過 before_agent_callback 條件跳過，允許 skip events。"
     ),
 )
