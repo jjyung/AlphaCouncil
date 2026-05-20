@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import munger as munger_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -24,7 +25,7 @@ def _scoring_block(state) -> str:
 
 
 charlie_munger = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="charlie_munger",
     description="Charlie Munger：跨學科心智模型，只買最頂尖的企業，寧可等待也不將就。",
     instruction=make_instruction(

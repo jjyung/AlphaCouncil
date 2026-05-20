@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import taleb as taleb_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -23,7 +24,7 @@ def _scoring_block(state) -> str:
     return taleb_scoring.format_block(taleb_scoring.score(state))
 
 nassim_taleb = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="nassim_taleb",
     description="Nassim Taleb：尾部風險防護與槓鈴策略，避免脆弱性、擁抱反脆弱機會。",
     instruction=make_instruction(

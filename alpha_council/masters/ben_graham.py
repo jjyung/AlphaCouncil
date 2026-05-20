@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import graham as graham_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -24,7 +25,7 @@ def _scoring_block(state) -> str:
 
 
 ben_graham = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="ben_graham",
     description="Ben Graham：安全邊際原則，尋找股價顯著低於內在價值的標的。",
     instruction=make_instruction(

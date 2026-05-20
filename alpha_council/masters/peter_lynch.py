@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import lynch as lynch_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -23,7 +24,7 @@ def _scoring_block(state) -> str:
     return lynch_scoring.format_block(lynch_scoring.score(state))
 
 peter_lynch = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="peter_lynch",
     description="Peter Lynch：投資你了解的企業，用 PEG ratio 尋找成長合理定價的十倍股。",
     instruction=make_instruction(

@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import ackman as ackman_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -25,7 +26,7 @@ def _scoring_block(state) -> str:
 
 
 bill_ackman = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="bill_ackman",
     description="Bill Ackman：激進主義投資，尋找可透過推動企業變革解鎖價值的標的。",
     instruction=make_instruction(

@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import buffett as buffett_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -27,7 +28,7 @@ def _scoring_block(state) -> str:
 
 
 warren_buffett = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="warren_buffett",
     description="Warren Buffett：以合理價格買入具持久競爭優勢的優質企業，長期持有。",
     instruction=make_instruction(

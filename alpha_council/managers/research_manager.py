@@ -1,6 +1,7 @@
 from google.adk.agents.llm_agent import Agent
 from google.genai import types
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.utils.master_runtime import ANALYST_REPORT_HEADER, build_reports_context
 
 
@@ -63,7 +64,7 @@ def _research_manager_instruction(ctx) -> str:
 
 
 research_manager = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="research_manager",
     description="綜合辯論結果，裁決最終研究結論，輸出投資信號與關鍵論據。",
     before_agent_callback=_skip_downstream,

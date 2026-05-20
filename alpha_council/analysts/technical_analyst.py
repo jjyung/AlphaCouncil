@@ -12,6 +12,8 @@ from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.trend import MACD, SMAIndicator
 from ta.volatility import BollingerBands
 
+from alpha_council.llm_config import get_default_agent_model
+
 _CACHE: dict[str, pd.DataFrame] = {}
 
 
@@ -579,7 +581,7 @@ def get_technical_indicators(
 
 
 technical_analyst = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="technical_analyst",
     description="技術分析師：使用 yfinance + ta 計算固定指標，輸出可核對數值的 technical_report。",
     tools=[get_technical_indicators],

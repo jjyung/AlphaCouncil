@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import cathie_wood as cathie_wood_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -23,7 +24,7 @@ def _scoring_block(state) -> str:
     return cathie_wood_scoring.format_block(cathie_wood_scoring.score(state))
 
 cathie_wood = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="cathie_wood",
     description="Cathie Wood：聚焦顛覆性創新平台，以 5 年以上時間框架評估爆發性成長潛力。",
     instruction=make_instruction(
