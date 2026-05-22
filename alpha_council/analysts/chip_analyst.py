@@ -12,6 +12,8 @@ import yfinance as yf
 from google.adk.agents.llm_agent import Agent
 from requests.exceptions import SSLError
 
+from alpha_council.llm_config import get_default_agent_model
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -1412,7 +1414,7 @@ def get_chip_data(
 
 
 chip_analyst = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="chip_analyst",
     description="籌碼分析師：分析大盤與個股參與者結構，輸出可核對數值的 chip_report。",
     tools=[get_chip_data],

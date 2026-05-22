@@ -12,6 +12,8 @@ import requests
 import yfinance as yf
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
+
 # ---------------------------------------------------------------------------
 # Constants & paths
 # ---------------------------------------------------------------------------
@@ -1490,7 +1492,7 @@ def get_psychology_data(
 # ---------------------------------------------------------------------------
 
 psychology_analyst = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="psychology_analyst",
     description="市場心理分析師：以 percentile/z-score 為核心判讀方法，產生可核對的 psychology_report。",
     tools=[get_psychology_data],

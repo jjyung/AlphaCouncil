@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.utils.master_runtime import (
     ANALYST_REPORT_HEADER,
     DEFAULT_ANALYST_KEYS,
@@ -42,7 +43,7 @@ def _instruction(ctx) -> str:
 
 
 bull_researcher = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="bull_researcher",
     description="看多研究員：整合所有分析師與大師觀點，建構最有力的多方投資論點。",
     instruction=_instruction,

@@ -1,6 +1,7 @@
 from google.adk.agents.llm_agent import Agent
 from google.genai import types
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.utils.market_snapshot import get_market_snapshot
 from alpha_council.utils.master_runtime import build_reports_context
 
@@ -54,7 +55,7 @@ def _trader_instruction(ctx) -> str:
 
 
 trader = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="trader",
     description="依據研究管理人的結論，擬定具體可執行的交易指令（方向、倉位、停損、出場），並以 get_market_snapshot 的真實數字為基礎。",
     tools=[get_market_snapshot],

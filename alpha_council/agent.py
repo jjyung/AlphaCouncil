@@ -6,6 +6,7 @@ from google.adk.agents.sequential_agent import SequentialAgent
 from google.adk.apps.app import App
 from google.genai import types
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.utils.master_runtime import DynamicMastersPanel, build_reports_context
 from alpha_council.utils.market_snapshot import build_snapshot_context
 from alpha_council.utils.shared_data_snapshot import SharedDataSnapshotAgent
@@ -171,7 +172,7 @@ def _portfolio_manager_instruction(ctx) -> str:
     return "\n\n---\n\n".join(parts)
 
 portfolio_manager = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="portfolio_manager",
     description="整合所有分析、風險辯論與市場真實數據，做出最終投資組合決策，包含倉位大小與風險控管措施。",
     before_agent_callback=_skip_downstream,

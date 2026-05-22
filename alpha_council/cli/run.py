@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from alpha_council.llm_config import expand_path, get_model_auth_error
+
 APP_NAME = "alpha-council"
 EXIT_OK = 0
 EXIT_EXPECTED_ERROR = 2
@@ -43,7 +45,11 @@ def _load_local_env_files() -> None:
     Local convenience loading checks project-root `.env` and `alpha_council/.env`.
     """
 
-    candidate_paths = [Path(".env"), Path("alpha_council/.env")]
+    candidate_paths: list[Path] = []
+    explicit_env_file = (os.getenv("ALPHACOUNCIL_ENV_FILE") or "").strip()
+    if explicit_env_file:
+        candidate_paths.append(Path(expand_path(explicit_env_file)))
+    candidate_paths.extend([Path(".env"), Path("alpha_council/.env")])
     for env_path in candidate_paths:
         if not env_path.exists() or not env_path.is_file():
             continue
@@ -105,11 +111,7 @@ def _resolve_report_format(cli_value: str | None) -> str:
 
 
 def _has_model_auth() -> bool:
-    api_key = (os.getenv("GOOGLE_API_KEY") or "").strip()
-    use_vertex = (os.getenv("GOOGLE_GENAI_USE_VERTEXAI") or "").strip().lower()
-    if api_key:
-        return True
-    return use_vertex in {"1", "true", "yes", "y", "on"}
+    return get_model_auth_error() is None
 
 
 def parse_masters(raw: str | None) -> list[str]:
@@ -365,7 +367,7 @@ def _persist_report(report: dict, *, ticker: str, market: str, report_format: st
             blob.upload_from_string(payload, content_type="text/markdown")
         return f"gs://{bucket_name}/{blob_name}"
 
-    local_root = (os.getenv("LOCAL_REPORT_ROOT") or "./reports").strip()
+    local_root = expand_path((os.getenv("LOCAL_REPORT_ROOT") or "./reports").strip())
     target = Path(local_root) / market / ticker / date / filename
     target.parent.mkdir(parents=True, exist_ok=True)
     if report_format == "json":
@@ -401,10 +403,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def _run_command(args: argparse.Namespace) -> int:
-    if not _has_model_auth():
-        raise CliUsageError(
-            "missing model auth: set GOOGLE_API_KEY, or set GOOGLE_GENAI_USE_VERTEXAI=true with proper GCP auth."
-        )
+    auth_error = get_model_auth_error()
+    if auth_error:
+        raise CliUsageError(auth_error)
 
     market = _infer_market(args.ticker, args.market)
     ticker = _normalize_ticker(args.ticker, market)
@@ -460,15 +461,15 @@ async def _run_command(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    _load_local_env_files()
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    if args.command != "run":
-        parser.print_help()
-        return EXIT_EXPECTED_ERROR
-
     try:
+        _load_local_env_files()
+        parser = build_parser()
+        args = parser.parse_args(argv)
+
+        if args.command != "run":
+            parser.print_help()
+            return EXIT_EXPECTED_ERROR
+
         return asyncio.run(_run_command(args))
     except CliUsageError as exc:
         print(f"usage error: {exc}")

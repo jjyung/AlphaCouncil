@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from alpha_council.cli import run
 
@@ -72,3 +73,74 @@ def test_run_command_failed_status(monkeypatch) -> None:
     args = run.build_parser().parse_args(["run", "--ticker", "AAPL", "--market", "us"])
     code = asyncio.run(run._run_command(args))
     assert code == run.EXIT_EXPECTED_ERROR
+
+
+def test_run_command_ollama_provider_skips_google_auth(monkeypatch) -> None:
+    outcome = run.RunOutcome(
+        status="SUCCEEDED", final_text="buy", session_id="s1", state={}, event_count=3
+    )
+
+    async def fake_run_pipeline(**kwargs):
+        return outcome
+
+    monkeypatch.setattr(run, "_run_pipeline", fake_run_pipeline)
+    monkeypatch.setenv("ALPHACOUNCIL_MODEL_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_API_BASE", "http://localhost:11434")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+
+    args = run.build_parser().parse_args(["run", "--ticker", "AAPL", "--market", "us"])
+    code = asyncio.run(run._run_command(args))
+    assert code == run.EXIT_OK
+
+
+def test_run_command_ollama_provider_accepts_optional_auth_token(monkeypatch) -> None:
+    outcome = run.RunOutcome(
+        status="SUCCEEDED", final_text="buy", session_id="s1", state={}, event_count=3
+    )
+
+    async def fake_run_pipeline(**kwargs):
+        return outcome
+
+    monkeypatch.setattr(run, "_run_pipeline", fake_run_pipeline)
+    monkeypatch.setenv("ALPHACOUNCIL_MODEL_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_API_BASE", "https://ollama.example.com")
+    monkeypatch.setenv("OLLAMA_API_KEY", "secret-token")
+
+    args = run.build_parser().parse_args(["run", "--ticker", "AAPL", "--market", "us"])
+    code = asyncio.run(run._run_command(args))
+    assert code == run.EXIT_OK
+
+
+def test_load_local_env_files_supports_explicit_env_file(monkeypatch, tmp_path) -> None:
+    env_file = tmp_path / "alpha.env"
+    env_file.write_text("OLLAMA_API_BASE=http://127.0.0.1:11434\n", encoding="utf-8")
+
+    monkeypatch.delenv("OLLAMA_API_BASE", raising=False)
+    monkeypatch.setenv("ALPHACOUNCIL_ENV_FILE", str(env_file))
+
+    run._load_local_env_files()
+
+    assert os.environ["OLLAMA_API_BASE"] == "http://127.0.0.1:11434"
+
+
+def test_persist_report_expands_local_root_env_vars(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("ALPHA_REPORT_ROOT", str(tmp_path))
+    monkeypatch.setenv("LOCAL_REPORT_ROOT", "$ALPHA_REPORT_ROOT/reports")
+
+    report = {
+        "meta": {
+            "date": "2026-05-20",
+            "run_id": "r1",
+            "session_id": "s1",
+            "generated_at": "2026-05-20T00:00:00+00:00",
+            "ticker": "AAPL",
+            "market": "us",
+            "status": "SUCCEEDED",
+        },
+        "final_decision": "buy",
+    }
+
+    path = run._persist_report(report, ticker="AAPL", market="us", report_format="json")
+
+    assert path.startswith(str(tmp_path / "reports"))

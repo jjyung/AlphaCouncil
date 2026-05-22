@@ -10,6 +10,8 @@ import requests
 import yfinance as yf
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
+
 _TWSE_BWIBBU_ALL = "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL"
 _TPEX_PE_PB_YIELD_CANDIDATES = [
     "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis",
@@ -1046,7 +1048,7 @@ def get_fundamentals(ticker: str, date: str | None = None, market: str = "tw") -
 
 
 fundamental_analyst = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="fundamental_analyst",
     description="基本面分析師：以官方資料 + yfinance 產生可核對的 fundamentals_report。",
     tools=[get_fundamentals],

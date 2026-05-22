@@ -11,6 +11,8 @@ import feedparser
 from bs4 import BeautifulSoup
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
+
 logger = logging.getLogger(__name__)
 
 # Resolved at import time so it works regardless of cwd
@@ -544,7 +546,7 @@ def get_news(
 # ---------------------------------------------------------------------------
 
 news_analyst = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="news_analyst",
     description="新聞分析師：以 get_news 取得原始列表，依證據分級寫出精準、可核對的 news_report。",
     tools=[get_news],

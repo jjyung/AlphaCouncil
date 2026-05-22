@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import damodaran as damodaran_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -24,7 +25,7 @@ def _scoring_block(state) -> str:
 
 
 aswath_damodaran = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="aswath_damodaran",
     description="Aswath Damodaran：以嚴謹的敘事（narrative）搭配數字驅動的 DCF 估值分析標的。",
     instruction=make_instruction(

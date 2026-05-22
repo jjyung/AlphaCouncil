@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import druckenmiller as druckenmiller_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -23,7 +24,7 @@ def _scoring_block(state) -> str:
     return druckenmiller_scoring.format_block(druckenmiller_scoring.score(state))
 
 stanley_druckenmiller = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="stanley_druckenmiller",
     description="Stanley Druckenmiller：宏觀驅動，捕捉流動性與政策轉折點帶來的不對稱風險機會。",
     instruction=make_instruction(

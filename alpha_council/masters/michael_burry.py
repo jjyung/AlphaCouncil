@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import burry as burry_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -24,7 +25,7 @@ def _scoring_block(state) -> str:
 
 
 michael_burry = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="michael_burry",
     description="Michael Burry：深度逆向投資，在市場恐慌中尋找被嚴重低估或被忽視的資產。",
     instruction=make_instruction(

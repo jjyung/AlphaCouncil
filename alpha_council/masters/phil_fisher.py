@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.masters._scoring import fisher as fisher_scoring
 from alpha_council.utils.master_runtime import make_before_callback, make_instruction
 from alpha_council.utils.shared_data_snapshot import ensure_snapshot
@@ -23,7 +24,7 @@ def _scoring_block(state) -> str:
     return fisher_scoring.format_block(fisher_scoring.score(state))
 
 phil_fisher = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="phil_fisher",
     description="Phil Fisher：Scuttlebutt 深度調研法，以質化分析為核心評估長期成長型企業。",
     instruction=make_instruction(
