@@ -147,9 +147,11 @@ def _portfolio_manager_instruction(ctx) -> str:
         ctx.state,
         ["aggressive_argument?", "neutral_argument?", "conservative_argument?"],
     )
+    previous_decision_block = ctx.state.get("previous_decision", "")
     base = (
         "你是投資組合管理人，負責做出最終投資決策。\n\n"
-        "上方已提供【市場即時快照】、研究管理人裁決、交易員執行計畫與風險辯論三方最終論點。"
+        "上方已提供【市場即時快照】、研究管理人裁決、交易員執行計畫與風險辯論三方最終論點"
+        "以及上次投資決策記錄。"
         "綜合所有資訊，輸出以下結構：\n"
         "1. **最終決策**：買入 / 持有 / 賣出（需與研究信號一致或說明偏差理由）\n"
         "2. **建議倉位比例**：以 `position_guidance.suggested_max_position_pct` 為錨點；"
@@ -160,6 +162,8 @@ def _portfolio_manager_instruction(ctx) -> str:
         "4. **退出策略**：目標價以 ATR 倍數表達（如「進場價 + 3×ATR」），並列出提前出場觸發條件（如 vol_band 升級、基本面惡化）\n"
         "5. **辯論採納說明**：明確指出最終決策採納了激進、中立、保守三方中哪些具體觀點、"
         "駁回了哪些、為何。不得對三方論點視而不見。\n"
+        "6. **延續性評估**：對照上次投資決策記錄，說明本次決策與上次的關係 — 延續、調整或反轉，"
+        "並具體說明理由（如：條件未變故延續、條件改變故調整、原假設被推翻故反轉）。\n"
     )
     parts: list[str] = []
     if snapshot_block:
@@ -168,12 +172,15 @@ def _portfolio_manager_instruction(ctx) -> str:
         parts.append(f"【研究管理人裁決與交易員計畫】\n\n{upstream_block}")
     if risk_block:
         parts.append(f"【風險辯論三方最終論點】\n\n{risk_block}")
+    if previous_decision_block:
+        parts.append(previous_decision_block)
     parts.append(base)
     return "\n\n---\n\n".join(parts)
 
 portfolio_manager = Agent(
     model=get_default_agent_model(),
     name="portfolio_manager",
+    output_key="portfolio_decision",
     description="整合所有分析、風險辯論與市場真實數據，做出最終投資組合決策，包含倉位大小與風險控管措施。",
     before_agent_callback=_skip_downstream,
     instruction=_portfolio_manager_instruction,
@@ -199,6 +206,7 @@ portfolio_manager = Agent(
 #   bear_researcher      → bear_argument  (每輪覆寫，第二輪已含對 bull 的回應)
 #   research_manager     → research_report
 #   trader               → trader_plan
+#   portfolio_manager    → portfolio_decision  (via output_key; also reads previous_decision from initial_state)
 
 alpha_council_pipeline_agent = SequentialAgent(
     name="AlphaCouncilPipelineAgent",

@@ -37,3 +37,8 @@ region = "asia-east1"
 
 [tool.agents-cli.create_params]
 deployment_target = "cloud_run"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
