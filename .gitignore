@@ -58,3 +58,8 @@ reports/
 *.tfstate.*
 crash.log
 crash.*.log
+
+node_modules/
+dist/
+build/
+*.log

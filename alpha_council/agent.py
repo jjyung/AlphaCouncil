@@ -6,8 +6,10 @@ from google.adk.agents.sequential_agent import SequentialAgent
 from google.adk.apps.app import App
 from google.genai import types
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.utils.master_runtime import DynamicMastersPanel, build_reports_context
 from alpha_council.utils.market_snapshot import build_snapshot_context
+from alpha_council.utils.shared_data_snapshot import SharedDataSnapshotAgent
 
 from alpha_council.analysts import (
     technical_analyst,
@@ -34,9 +36,9 @@ from alpha_council.masters import (
 from alpha_council.researchers import bull_researcher, bear_researcher
 from alpha_council.risk import aggressive_debater, neutral_debater, conservative_debater
 from alpha_council.trader import trader
+from alpha_council.guardrails.stock_code_guard import stock_code_guard_callback
 from alpha_council.managers import research_manager
 from alpha_council.master_selector import master_selector_agent
-from guardrail.stock_code_guard import stock_code_guard_callback
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +85,15 @@ analyst_team = ParallelAgent(
 # Phase 1.5 — 大師選擇（使用者指定 3–7 位，或隨機 3 位）
 # before_agent_callback=skip_if_no_analysis_intent already on master_selector_agent.
 # Writes selected_masters: list[str] and awaiting_master_choice: bool to session state.
+
+# Phase 1.6 — 共用資料快照：在分析師團隊跑完後、masters_panel 之前，
+# 一次抓齊 financial_metrics / line_items / market_cap / insider_trades /
+# company_news / prices，存入 shared_data:* 鍵供所有 master scoring 共用。
+# Ticker 從 analyst reports 解析，因此必須在 analyst_team 之後。
+shared_data_snapshot = SharedDataSnapshotAgent(
+    name="shared_data_snapshot",
+    description="從 analyst 報告解析 ticker，呼叫 providers 抓取 6 個共用資料點，存入 session state。",
+)
 
 # Phase 2 — 13 位投資大師（僅執行已選中的大師）
 # Skip logic handled inside DynamicMastersPanel._run_async_impl:
@@ -136,9 +147,11 @@ def _portfolio_manager_instruction(ctx) -> str:
         ctx.state,
         ["aggressive_argument?", "neutral_argument?", "conservative_argument?"],
     )
+    previous_decision_block = ctx.state.get("previous_decision", "")
     base = (
         "你是投資組合管理人，負責做出最終投資決策。\n\n"
-        "上方已提供【市場即時快照】、研究管理人裁決、交易員執行計畫與風險辯論三方最終論點。"
+        "上方已提供【市場即時快照】、研究管理人裁決、交易員執行計畫與風險辯論三方最終論點"
+        "以及上次投資決策記錄。"
         "綜合所有資訊，輸出以下結構：\n"
         "1. **最終決策**：買入 / 持有 / 賣出（需與研究信號一致或說明偏差理由）\n"
         "2. **建議倉位比例**：以 `position_guidance.suggested_max_position_pct` 為錨點；"
@@ -149,6 +162,8 @@ def _portfolio_manager_instruction(ctx) -> str:
         "4. **退出策略**：目標價以 ATR 倍數表達（如「進場價 + 3×ATR」），並列出提前出場觸發條件（如 vol_band 升級、基本面惡化）\n"
         "5. **辯論採納說明**：明確指出最終決策採納了激進、中立、保守三方中哪些具體觀點、"
         "駁回了哪些、為何。不得對三方論點視而不見。\n"
+        "6. **延續性評估**：對照上次投資決策記錄，說明本次決策與上次的關係 — 延續、調整或反轉，"
+        "並具體說明理由（如：條件未變故延續、條件改變故調整、原假設被推翻故反轉）。\n"
     )
     parts: list[str] = []
     if snapshot_block:
@@ -157,12 +172,15 @@ def _portfolio_manager_instruction(ctx) -> str:
         parts.append(f"【研究管理人裁決與交易員計畫】\n\n{upstream_block}")
     if risk_block:
         parts.append(f"【風險辯論三方最終論點】\n\n{risk_block}")
+    if previous_decision_block:
+        parts.append(previous_decision_block)
     parts.append(base)
     return "\n\n---\n\n".join(parts)
 
 portfolio_manager = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="portfolio_manager",
+    output_key="portfolio_decision",
     description="整合所有分析、風險辯論與市場真實數據，做出最終投資組合決策，包含倉位大小與風險控管措施。",
     before_agent_callback=_skip_downstream,
     instruction=_portfolio_manager_instruction,
@@ -177,18 +195,25 @@ portfolio_manager = Agent(
 # Session state keys:
 #   analyst_team         → news_report, technical_report, psychology_report, fundamentals_report, chip_report
 #   master_selector      → selected_masters: list[str], awaiting_master_choice: bool
+#   shared_data_snapshot → shared_data:ticker, shared_data:market,
+#                          shared_data:financial_metrics, shared_data:line_items,
+#                          shared_data:market_cap, shared_data:insider_trades,
+#                          shared_data:company_news, shared_data:prices,
+#                          shared_data:fetched_at
 #   masters_panel        → {name}_report for each selected master
 #                        + consolidated_masters_report
 #   bull_researcher      → bull_argument  (每輪覆寫，第二輪已含對 bear 的回應)
 #   bear_researcher      → bear_argument  (每輪覆寫，第二輪已含對 bull 的回應)
 #   research_manager     → research_report
 #   trader               → trader_plan
+#   portfolio_manager    → portfolio_decision  (via output_key; also reads previous_decision from initial_state)
 
 alpha_council_pipeline_agent = SequentialAgent(
     name="AlphaCouncilPipelineAgent",
     sub_agents=[
         analyst_team,
         master_selector_agent,
+        shared_data_snapshot,
         masters_panel,
         research_debate,
         research_manager,
@@ -199,7 +224,7 @@ alpha_council_pipeline_agent = SequentialAgent(
     before_agent_callback=stock_code_guard_callback,
     description=(
         "AlphaCouncil 投資分析流水線（SequentialAgent）："
-        "股票代號格式檢查 → 分析師團隊 → 大師選擇 → 大師觀點（含聚合）→ 研究辯論 → 研究裁決 → 交易員 → 風險辯論 → 投資組合管理人。"
+        "股票代號格式檢查 → 分析師團隊 → 大師選擇 → 共用資料快照 → 大師觀點（含聚合）→ 研究辯論 → 研究裁決 → 交易員 → 風險辯論 → 投資組合管理人。"
         "各階段透過 before_agent_callback 條件跳過，允許 skip events。"
     ),
 )

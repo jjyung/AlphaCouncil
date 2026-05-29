@@ -17,6 +17,7 @@ import random
 from google.adk.agents.llm_agent import Agent
 from google.genai import types
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.utils.master_runtime import (
     ALL_MASTERS,
     MASTER_DISPLAY_NAMES,
@@ -256,7 +257,7 @@ def _master_selector_instruction(ctx) -> str:
 
 
 master_selector_agent = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="master_selector",
     description="解析使用者的大師選擇（兩階段互動：無選擇時先展示選單，再等待回覆）。",
     tools=[select_masters],

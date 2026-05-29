@@ -3,12 +3,22 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import traceback
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+from alpha_council.llm_config import expand_path, get_model_auth_error
+from alpha_council.utils.decision_history import (
+    format_previous_decision_for_prompt,
+    load_previous_decision,
+    save_decision,
+)
 
 APP_NAME = "alpha-council"
 EXIT_OK = 0
@@ -46,7 +56,11 @@ def _load_local_env_files() -> None:
     Local convenience loading checks project-root `.env` and `alpha_council/.env`.
     """
 
-    candidate_paths = [Path(".env"), Path("alpha_council/.env")]
+    candidate_paths: list[Path] = []
+    explicit_env_file = (os.getenv("ALPHACOUNCIL_ENV_FILE") or "").strip()
+    if explicit_env_file:
+        candidate_paths.append(Path(expand_path(explicit_env_file)))
+    candidate_paths.extend([Path(".env"), Path("alpha_council/.env")])
     for env_path in candidate_paths:
         if not env_path.exists() or not env_path.is_file():
             continue
@@ -108,11 +122,7 @@ def _resolve_report_format(cli_value: str | None) -> str:
 
 
 def _has_model_auth() -> bool:
-    api_key = (os.getenv("GOOGLE_API_KEY") or "").strip()
-    use_vertex = (os.getenv("GOOGLE_GENAI_USE_VERTEXAI") or "").strip().lower()
-    if api_key:
-        return True
-    return use_vertex in {"1", "true", "yes", "y", "on"}
+    return get_model_auth_error() is None
 
 
 def parse_masters(raw: str | None) -> list[str]:
@@ -224,6 +234,7 @@ async def _run_pipeline(
     masters_raw: str | None,
     timeout_sec: int,
     debug: bool,
+    previous_decision: str | None = None,
 ) -> RunOutcome:
     from google.adk.runners import Runner
     from google.adk.sessions import InMemorySessionService
@@ -235,7 +246,7 @@ async def _run_pipeline(
     runner = Runner(app_name=APP_NAME, agent=root_agent, session_service=session_service)
     user_id = "cli"
     session_id = uuid.uuid4().hex
-    initial_state = {
+    initial_state: dict[str, object] = {
         "selected_masters": masters,
         "awaiting_master_choice": False,
         "skip_master_selector": True,
@@ -244,6 +255,8 @@ async def _run_pipeline(
         "ticker": ticker,
         "date": datetime.now(UTC).date().isoformat(),
     }
+    if previous_decision:
+        initial_state["previous_decision"] = previous_decision
 
     await session_service.create_session(
         app_name=APP_NAME,
@@ -335,6 +348,7 @@ async def _run_pipeline_with_retry(
     masters_raw: str | None,
     timeout_sec: int,
     debug: bool,
+    previous_decision: str | None = None,
 ) -> RunOutcome:
     last_outcome: RunOutcome | None = None
 
@@ -347,6 +361,7 @@ async def _run_pipeline_with_retry(
                 masters_raw=masters_raw,
                 timeout_sec=timeout_sec,
                 debug=debug,
+                previous_decision=previous_decision,
             )
         except Exception as exc:
             messages = _exception_messages(exc)
@@ -459,7 +474,7 @@ def _persist_report(report: dict, *, ticker: str, market: str, report_format: st
             blob.upload_from_string(payload, content_type="text/markdown")
         return f"gs://{bucket_name}/{blob_name}"
 
-    local_root = (os.getenv("LOCAL_REPORT_ROOT") or "./reports").strip()
+    local_root = expand_path((os.getenv("LOCAL_REPORT_ROOT") or "./reports").strip())
     target = Path(local_root) / market / ticker / date / filename
     target.parent.mkdir(parents=True, exist_ok=True)
     if report_format == "json":
@@ -494,16 +509,62 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _persist_decision_history(ticker: str, market: str, session_id: str, decision_text: str) -> str:
+    """Save decision history locally, and to GCS if GCS_BUCKET_ROOT is configured.
+
+    Unlike portfolio_report persistence, decision history is ALWAYS saved
+    regardless of ``ALPHACOUNCIL_PERSIST_ENABLED``.
+
+    Returns the local path of the history file.
+    """
+    local_root = expand_path((os.getenv("LOCAL_REPORT_ROOT") or "./reports").strip())
+    local_path = save_decision(
+        ticker, market, session_id, decision_text,
+        root=Path(local_root),
+    )
+
+    gcs_root = (os.getenv("GCS_BUCKET_ROOT") or "").strip()
+    if gcs_root:
+        try:
+            from google.cloud import storage
+
+            bucket_name, root_prefix = _parse_gs_root(gcs_root)
+            blob_name = "/".join(p for p in [root_prefix, market, ticker, "decision_history.jsonl"] if p)
+
+            # Read the latest record we just appended locally and upload it.
+            # Using append-mode on GCS would require compose or a rewrite, so
+            # we upload the entire local file instead — it's small and append-only.
+            local_file = Path(local_root) / market / ticker / "decision_history.jsonl"
+            if local_file.exists():
+                client = storage.Client()
+                bucket = client.bucket(bucket_name)
+                blob = bucket.blob(blob_name)
+                blob.upload_from_filename(str(local_file))
+                logger.info("Decision history uploaded to gs://%s/%s", bucket_name, blob_name)
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to upload decision history to GCS — continuing.")
+    else:
+        logger.info("No GCS_BUCKET_ROOT configured; decision history saved locally only.")
+
+    return local_path
+
+
 async def _run_command(args: argparse.Namespace) -> int:
-    if not _has_model_auth():
-        raise CliUsageError(
-            "missing model auth: set GOOGLE_API_KEY, or set GOOGLE_GENAI_USE_VERTEXAI=true with proper GCP auth."
-        )
+    auth_error = get_model_auth_error()
+    if auth_error:
+        raise CliUsageError(auth_error)
 
     market = _infer_market(args.ticker, args.market)
     ticker = _normalize_ticker(args.ticker, market)
     masters = parse_masters(args.masters)
     report_format = _resolve_report_format(args.report_format)
+
+    # Load previous decision for continuity (best-effort).
+    local_root = expand_path((os.getenv("LOCAL_REPORT_ROOT") or "./reports").strip())
+    prev_record = load_previous_decision(ticker, market, root=Path(local_root))
+    previous_decision = (
+        format_previous_decision_for_prompt(prev_record) if prev_record else None
+    )
 
     outcome = await _run_pipeline_with_retry(
         ticker=ticker,
@@ -512,6 +573,7 @@ async def _run_command(args: argparse.Namespace) -> int:
         masters_raw=args.masters,
         timeout_sec=args.timeout_seconds,
         debug=bool(args.debug),
+        previous_decision=previous_decision,
     )
 
     if args.debug:
@@ -542,6 +604,16 @@ async def _run_command(args: argparse.Namespace) -> int:
         print(f"run ended with status={outcome.status}")
         return EXIT_EXPECTED_ERROR
 
+    # Persist decision history — always, regardless of ALPHACOUNCIL_PERSIST_ENABLED.
+    decision_text = outcome.state.get("portfolio_decision") or outcome.final_text or ""
+    if decision_text:
+        history_path = _persist_decision_history(
+            ticker, market, outcome.session_id, decision_text,
+        )
+        print(f"decision history: {history_path}")
+    else:
+        print("decision history: skipped (no portfolio_decision in state)")
+
     persist_enabled = _parse_bool_env("ALPHACOUNCIL_PERSIST_ENABLED", default=False)
     report = _build_report(outcome=outcome, ticker=ticker, market=market)
     if persist_enabled:
@@ -554,15 +626,15 @@ async def _run_command(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    _load_local_env_files()
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    if args.command != "run":
-        parser.print_help()
-        return EXIT_EXPECTED_ERROR
-
     try:
+        _load_local_env_files()
+        parser = build_parser()
+        args = parser.parse_args(argv)
+
+        if args.command != "run":
+            parser.print_help()
+            return EXIT_EXPECTED_ERROR
+
         return asyncio.run(_run_command(args))
     except CliUsageError as exc:
         print(f"usage error: {exc}")

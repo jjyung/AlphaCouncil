@@ -30,11 +30,6 @@ make run
 make run-cli
 make web
 make api-server
-make deploy-shared-infra
-make build-agent-image
-make plan-agent
-make deploy-agent
-make build-cli-image
 ```
 
 - `make sync`：使用 `uv sync` 安裝並同步依賴
@@ -42,23 +37,8 @@ make build-cli-image
 - `make run-cli`：使用新入口 `alpha-council run` 執行一次完整 pipeline
 - `make web`：使用 `adk web` 啟動 ADK Web UI
 - `make api-server`：使用 `adk api_server` 啟動 API 服務
-- `make deploy-shared-infra`：套用 shared infra Terraform（共用 Artifact Registry owner）
-- `make build-agent-image`：建置 Agent Service 的 Cloud Run image
-- `make plan-agent`：預覽 Agent Service Terraform 變更
-- `make deploy-agent`：套用 Agent Service Terraform（正式部署）
-- `make build-cli-image`：建置 CLI Batch 的 Cloud Run Job image
 
-部署與實驗設計文件：
-
-- `docs/deployment/agent-service.md`
-- `docs/deployment/architecture.md`
-- `docs/deployment/cli-batch-experiment.md`
-- `docs/adr/0001-split-agent-and-cli-deployment.md`
-
-Agent Service 部署採單一路徑：`make build-agent-image` + `make deploy-agent`（Cloud Build + Terraform）。
-Shared Artifact Registry 採獨立 owner：`make deploy-shared-infra`。
-`LOGS_BUCKET_NAME` / `AGENT_LOGS_BUCKET` 一律使用 bucket name（不加 `gs://`）。
-`ALLOW_ORIGINS` 預設可留空；僅在瀏覽器跨網域呼叫已部署服務時再設定（多個來源請用 `;` 分隔）。
+本專案採 local-first；雲端部署方案不屬於主線範圍，請依需求自行延伸。
 
 如果你偏好直接使用 `uv`，也可以執行：
 
@@ -78,10 +58,42 @@ uv run adk api_server
 - `--timeout-seconds`：單次執行逾時秒數（預設讀取 `ORCHESTRATOR_TIMEOUT_SECONDS`，預設值 1800）
 - `--debug`：顯示事件流與最終回應原文（除錯模式）
 
+模型供應商由 env 控制：
+
+- `ALPHACOUNCIL_MODEL_PROVIDER=gemini|ollama`
+- `ALPHACOUNCIL_MODEL=...`
+- `ALPHACOUNCIL_ENV_FILE=/path/to/.env` 可指定額外 env 檔
+
+Gemini 範例：
+
+```env
+ALPHACOUNCIL_MODEL_PROVIDER=gemini
+ALPHACOUNCIL_MODEL=gemini-2.5-flash
+GOOGLE_API_KEY=...
+```
+
+Ollama 範例：
+
+```env
+ALPHACOUNCIL_MODEL_PROVIDER=ollama
+ALPHACOUNCIL_MODEL=gemma3:latest
+OLLAMA_API_BASE=http://localhost:11434
+OLLAMA_API_KEY=
+OLLAMA_CF_ACCESS_CLIENT_ID=
+OLLAMA_CF_ACCESS_CLIENT_SECRET=
+OLLAMA_CF_AUTHORIZATION=
+```
+
+使用 Ollama 時請優先選擇支援 tool calling 的模型；本專案透過 ADK 的 LiteLLM 整合走 `ollama_chat/...` 路徑。
+若 Ollama 是經由 Cloudflare 或其他 gateway 對外暴露，可額外設定 `OLLAMA_API_KEY`（或 `OLLAMA_AUTH_TOKEN`）作為 Bearer token。
+若是 Cloudflare Access service token，請改設 `OLLAMA_CF_ACCESS_CLIENT_ID` 與 `OLLAMA_CF_ACCESS_CLIENT_SECRET`，系統會自動附帶 `CF-Access-Client-Id` / `CF-Access-Client-Secret` headers。
+若 gateway 還要求 `CF_Authorization` cookie，可再設 `OLLAMA_CF_AUTHORIZATION`；系統會自動附帶 `Cookie: CF_Authorization=...`。
+
 持久化輸出由環境變數控制：
 
 - `ALPHACOUNCIL_PERSIST_ENABLED=true` 才會落檔
 - `GCS_BUCKET_ROOT=gs://...` 時寫入 GCS，否則寫入 `LOCAL_REPORT_ROOT`（預設 `./reports`）
+- `LOCAL_REPORT_ROOT` 與 `ALPHACOUNCIL_ENV_FILE` 都支援 `~` 與 `$VAR` 路徑展開
 
 ---
 

@@ -11,8 +11,9 @@ requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4",
     "feedparser",
-    "google-adk",
+    "google-adk[extensions]",
     "google-cloud-storage",
+    "litellm",
     "lxml",
     "numpy",
     "pandas",
@@ -24,9 +25,10 @@ dependencies = [
 
 [project.scripts]
 alpha-council = "alpha_council.cli.run:main"
+alpha-council-ollama-lite = "alpha_council.cli.run_ollama_lite:main"
 
 [tool.setuptools.packages.find]
-include = ["alpha_council*", "guardrail*"]
+include = ["alpha_council*"]
 
 [tool.agents-cli]
 acli_version = "0.1.2"
@@ -35,3 +37,8 @@ region = "asia-east1"
 
 [tool.agents-cli.create_params]
 deployment_target = "cloud_run"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

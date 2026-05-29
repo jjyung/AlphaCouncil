@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from alpha_council.llm_config import get_default_agent_model
 from alpha_council.utils.market_snapshot import build_snapshot_context
 from alpha_council.utils.master_runtime import build_reports_context, make_peer_injector
 
@@ -40,7 +41,7 @@ def _instruction(ctx) -> str:
 
 
 aggressive_debater = Agent(
-    model="gemini-2.5-flash",
+    model=get_default_agent_model(),
     name="aggressive_debater",
     description="激進辯手：主張最大化報酬，支持高倉位、高槓桿或積極進場的風險立場。",
     instruction=_instruction,

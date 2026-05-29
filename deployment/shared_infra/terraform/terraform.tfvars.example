@@ -1,8 +1,0 @@
-project_id               = "dassa-lab"
-region                   = "asia-east1"
-artifact_repository_name = "alpha-council"
-
-labels = {
-  managed-by = "terraform"
-  track      = "shared-infra"
-}
