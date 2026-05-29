@@ -1,0 +1,164 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/deepseek-v4-flash-free",
+  "small_model": "opencode/nemotron-3-super-free",
+  "default_agent": "fullstack-dev",
+  "instructions": [
+    "skills/adr/SKILL.md",
+    "skills/dev-flow/SKILL.md",
+    "skills/pr-review/SKILL.md",
+    "skills/test-gen/SKILL.md",
+    "skills/docs-gen/SKILL.md",
+    "skills/orchestrate/SKILL.md"
+  ],
+  "agent": {
+    "fullstack-dev": {
+      "description": "Primary development agent. Orchestrates contract-first ADR → contract → code → verify flow.",
+      "mode": "primary",
+      "prompt": "{file:agents/fullstack-dev.md}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "spec-writer": {
+      "description": "Analyze requirements and produce contract specifications in docs/specs/. Writes persistent contracts for parallel development.",
+      "mode": "subagent",
+      "model": "opencode/big-pickle",
+      "prompt": "{file:agents/spec-writer.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "executor": {
+      "description": "Implement code changes following an approved contract. Full read/write access for coding.",
+      "mode": "subagent",
+      "prompt": "{file:agents/executor.md}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "verifier": {
+      "description": "Run lint, typecheck, tests, and build to verify code changes. Read-only + bash.",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3-super-free",
+      "prompt": "{file:agents/verifier.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "code-reviewer": {
+      "description": "Systematic code review across correctness, security, quality, testing, and style dimensions.",
+      "mode": "subagent",
+      "model": "opencode/big-pickle",
+      "prompt": "{file:agents/code-reviewer.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "test-engineer": {
+      "description": "Generate meaningful tests for source code — unit, integration, and E2E. Framework-aware.",
+      "mode": "subagent",
+      "prompt": "{file:agents/test-engineer.md}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "tech-writer": {
+      "description": "Generate and update project documentation — code comments, API docs, README, and CHANGELOG.",
+      "mode": "subagent",
+      "prompt": "{file:agents/tech-writer.md}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "team-lead": {
+      "description": "Multi-agent orchestrator for complex tasks. Delegates to architect, spec-writer, executor, code-reviewer, test-engineer, verifier.",
+      "mode": "subagent",
+      "model": "opencode/big-pickle",
+      "prompt": "{file:agents/team-lead.md}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "architect": {
+      "description": "Capture architecture decisions as ADR documents. Analyzes tradeoffs and records context.",
+      "mode": "subagent",
+      "model": "opencode/big-pickle",
+      "prompt": "{file:agents/architect.md}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    }
+  },
+  "command": {
+    "spec": {
+      "description": "Create a contract specification in docs/specs/ — source of truth for implementation",
+      "agent": "spec-writer",
+      "subtask": true,
+      "template": "Analyze the request and produce a contract specification document.\n\n$ARGUMENTS"
+    },
+    "review": {
+      "description": "Review code changes across 5 dimensions (correctness, security, quality, testing, style)",
+      "agent": "code-reviewer",
+      "subtask": true,
+      "template": "Review the current changes.\n\n$ARGUMENTS"
+    },
+    "test": {
+      "description": "Generate tests for source code — auto-detects framework and conventions",
+      "agent": "test-engineer",
+      "subtask": true,
+      "template": "Generate tests for the current code.\n\n$ARGUMENTS"
+    },
+    "docs": {
+      "description": "Generate or update documentation — code comments, README, API docs, ADRs",
+      "agent": "tech-writer",
+      "subtask": true,
+      "template": "Generate or update documentation.\n\n$ARGUMENTS"
+    },
+    "orchestrate": {
+      "description": "Coordinate multiple agents for complex, multi-domain tasks",
+      "agent": "team-lead",
+      "subtask": true,
+      "template": "Orchestrate the following complex task.\n\n$ARGUMENTS"
+    },
+    "adr": {
+      "description": "Create or update an Architecture Decision Record",
+      "agent": "architect",
+      "subtask": true,
+      "template": "Create an Architecture Decision Record.\n\n$ARGUMENTS"
+    },
+    "verify": {
+      "description": "Run lint, typecheck, tests, and build to verify changes",
+      "template": "Use the verifier agent to run the full verification suite on the current changes.\n\n$ARGUMENTS",
+      "agent": "verifier",
+      "subtask": true
+    }
+  }
+}
