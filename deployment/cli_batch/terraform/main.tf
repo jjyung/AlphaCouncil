@@ -1,3 +1,17 @@
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 7.31.0"
+    }
+  }
+}
+
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
 locals {
   job_name                = "cli-alpha-council-job"
   workflow_name           = "cli-alpha-council-workflow"

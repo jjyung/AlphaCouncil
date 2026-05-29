@@ -80,7 +80,7 @@ wait_for_run_operation:
         result: operation_status
     - operation_complete:
         switch:
-          - condition: $${operation_status.body.done == true}
+          - condition: $${map.get(operation_status.body, "done") == true}
             next: summarize_operation
         next: wait_before_poll
     - wait_before_poll:

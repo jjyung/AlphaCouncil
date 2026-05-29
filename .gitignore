@@ -52,12 +52,19 @@ reports/
 # Local planning artifacts
 .omc/
 
-# Terraform local cache/state
+# Terraform
 .terraform/
 *.tfstate
 *.tfstate.*
 crash.log
 crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+
+# Allow example tfvars to be tracked
+!*.example.tfvars
 
 node_modules/
 dist/
