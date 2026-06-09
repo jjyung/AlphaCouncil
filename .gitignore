@@ -59,6 +59,9 @@ reports/
 crash.log
 crash.*.log
 
+# Deployment artifacts
+deployment/
+
 node_modules/
 dist/
 build/
