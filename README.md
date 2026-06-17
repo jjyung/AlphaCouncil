@@ -68,7 +68,7 @@ Gemini 範例：
 
 ```env
 ALPHACOUNCIL_MODEL_PROVIDER=gemini
-ALPHACOUNCIL_MODEL=gemini-2.5-flash
+ALPHACOUNCIL_MODEL=gemini-3.1-flash-lite
 GOOGLE_API_KEY=...
 ```
 

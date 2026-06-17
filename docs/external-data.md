@@ -272,7 +272,7 @@ class Cache:
 ```env
 # Provider selector
 ALPHACOUNCIL_MODEL_PROVIDER=gemini
-ALPHACOUNCIL_MODEL=gemini-2.5-flash
+ALPHACOUNCIL_MODEL=gemini-3.1-flash-lite
 
 # Gemini 至少需要其中一個
 GOOGLE_API_KEY=...

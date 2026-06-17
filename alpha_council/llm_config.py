@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
 DEFAULT_OLLAMA_MODEL = "gemma3:latest"
 DEFAULT_OLLAMA_API_BASE = "http://localhost:11434"
 

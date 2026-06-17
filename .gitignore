@@ -54,6 +54,9 @@ reports/
 
 # Terraform
 .terraform/
+
+# Terraform state backup (dassa-lab project, for future destroy)
+deployment/cli_batch/terraform/state.backup.dassa-lab/
 *.tfstate
 *.tfstate.*
 crash.log

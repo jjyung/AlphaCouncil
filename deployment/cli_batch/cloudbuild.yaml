@@ -1,0 +1,11 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-f"
+      - "Dockerfile.cli"
+      - "-t"
+      - "asia-east1-docker.pkg.dev/lighthouse-485801/docker-images/alpha-council-cli:latest"
+      - "."
+images:
+  - "asia-east1-docker.pkg.dev/lighthouse-485801/docker-images/alpha-council-cli:latest"
