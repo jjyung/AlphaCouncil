@@ -69,12 +69,13 @@
 
 **使用工具**：
 
-- `get_news(ticker, date, market)` → 新聞列表
+- `get_news(ticker, date, market, validate_links)` → 新聞列表與連結狀態
 
 **資料來源**：
 
-- **US 市場**：yfinance.Ticker.news（Yahoo Finance API）
-- **TW 市場**：鉅亨網 API（news.cnyes.com）
+- **目前僅支援 TW**：經濟日報 RSS、Yahoo Finance Taiwan RSS、鉅亨網 HTML
+- 連結驗證採 HEAD → GET，結果寫入 `link_validation` 與每筆文章的 `link_status`
+- `market` 不是 `TW` 時回傳空文章清單與 unsupported 狀態，不會自動切換到 US 新聞來源
 
 **分析重點**：
 
@@ -84,6 +85,8 @@
 - 市場敘事傾向（正面 / 中立 / 負面）
 
 **產出欄位**：`news_report`
+
+**開發方式文件**：[news-analyst.md](./news-analyst.md)
 
 ---
 
